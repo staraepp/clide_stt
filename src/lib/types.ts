@@ -72,6 +72,7 @@ export interface SystemStatus {
   modelName: string;
   providerConfigured: boolean;
   providerNeedsKey: boolean;
+  adHocBuild: boolean;
   ready: boolean;
 }
 

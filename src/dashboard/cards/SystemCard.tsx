@@ -74,7 +74,13 @@ export function SystemCard({
         <Row
           tone={permissionTone(accessibility)}
           name="Accessibility"
-          value={accessibility === "granted" ? "Granted" : "Not granted"}
+          value={
+            accessibility === "granted"
+              ? "Granted"
+              : status.adHocBuild
+                ? "Lost on rebuild"
+                : "Not granted"
+          }
           action={
             accessibility !== "granted" && (
               <Button
@@ -124,6 +130,17 @@ export function SystemCard({
           wide={!usingAppleSpeech}
         />
       </ul>
+
+      {/* The one case where System Settings and clide disagree, and both are
+          right: macOS keys the grant to the code signature, and an ad-hoc
+          build gets a new one every rebuild. Saying so beats prompting again. */}
+      {status.adHocBuild && accessibility !== "granted" && (
+        <p className="mt-3 rounded-ctl border border-warn/25 bg-warn/8 px-3 py-2.5 text-[11.5px] leading-relaxed text-ink-2">
+          System Settings may still show clide switched on. This is a
+          development build, so macOS sees each rebuild as a different app and
+          drops the grant. Remove clide from Accessibility, then add it back.
+        </p>
+      )}
 
       <div className="mt-auto flex items-center gap-2 pt-4 text-[12.5px] text-ink-2">
         <StatusDot tone={status.ready ? "ready" : "pending"} />

@@ -9,8 +9,45 @@ repository is for release binaries.
 Read `blueprint.md` (product truth) and `AGENTS.md` (engineering rules) first —
 this file only records *state of the build*, never product decisions.
 
-**Last updated:** 2026-09-03 — **11 local models**, speech-permission bug
-fixed, and the download timeout bug fixed (179 tests passing, clippy clean). Six providers: Groq, OpenAI, Deepgram,
+**Last updated:** 2026-09-03 — new app icon, accessibility contradiction
+explained, Copied bubble. **IN PROGRESS:** DMG, website update, push to `main`.
+See "IN FLIGHT" immediately below before doing anything else.
+
+## IN FLIGHT — pick up here
+
+Requested, in order, and how far each got:
+
+| Ask | State |
+|---|---|
+| Minimalist app icon | **done** — `assets/icon.svg`, rendered into `src-tauri/icons/` |
+| Accessibility "granted but not granted" bug | **done** — see below |
+| Copy button says "Copied" then fades | **done** — `components/CopyButton.tsx` |
+| Cute DMG for the website | **done** — `assets/dmg-background.svg`, config in `bundle.macOS.dmg` |
+| HUD pop in/out | **done** — underdamped in, quick out |
+| Update the website | **in progress** — source at `/Users/brenomenezes/learn/aaa` (repo `staraepp/Clide-website`) |
+| Push everything to `main` | **in progress** |
+
+### The website
+
+Next.js, at `/Users/brenomenezes/learn/aaa`, remote `staraepp/Clide-website`,
+one commit. It already links to `staraepp/clide_stt`. What is now stale on it:
+
+- Download buttons in the hero point at `#top`, not a real release or DMG.
+- It advertises Whisper/Parakeet/Vosk/Moonshine; the app actually ships **11
+  local models** (9 Whisper, 3 Parakeet) and **7 cloud/local STT providers**.
+- No mention of Apple Speech or of Rewrite via Apple Intelligence, both of
+  which now work.
+- `app/icon.svg` is a **four**-bar mark; everything else uses five. Replace it
+  with `assets/icon.svg` from the app repo.
+- The providers section still claims "a single Swift file". The app is Rust.
+
+### Icon
+
+`assets/icon.svg` is the source of truth. It is rendered to every size by a
+throwaway Swift/WebKit script (no build-time dependency added just to make an
+icon) and assembled with `iconutil`. To change it, edit the SVG and re-render;
+do not hand-edit the PNGs.
+ Six providers: Groq, OpenAI, Deepgram,
 ElevenLabs, AssemblyAI, local Whisper, local Parakeet. Issue 1 still blocked on
 the missing Groq key.
 
@@ -92,6 +129,43 @@ constants. The aurora and voice-presence code are independent and stay.
 
 `Ribbon.tsx` took a `behavior` prop and now says "Hold" or "Press" to match the
 card beneath it.
+
+## THE ACCESSIBILITY BUG — FIXED (2026-09-03)
+
+**Verified working**: the Setup card now reads "Accessibility · Granted" on a
+machine where it previously insisted otherwise.
+
+`AXIsProcessTrusted()` resolves once and can then stay **stale for the lifetime
+of the process**. Granting Accessibility while Clide is running — exactly what
+onboarding asks people to do — left it reporting `false` until relaunch.
+
+`ax::is_process_trusted()` now treats the flag as a fast path only. When it
+says no, Clide *makes an Accessibility call* and looks at the error: anything
+other than `kAXErrorAPIDisabled` means the API is answering us, which is the
+thing the permission actually governs. **Asking by doing cannot go stale.**
+Do not "simplify" this back to the bare flag.
+
+The ad-hoc signing story below is still true and still worth fixing, but it was
+not what this bug was.
+
+### Secondary: ad-hoc signing (still open, lower priority)
+
+macOS keys the Accessibility grant to the app's **code signature**, not its
+path. A properly signed app's designated requirement names its certificate and
+survives rebuilds. An **ad-hoc** signature has no certificate, so the
+requirement names the binary's `cdhash` — which changes on every single
+rebuild. System Settings lists clide by path with the switch on;
+`AXIsProcessTrusted()` returns false because this binary is not the one that
+was granted.
+
+`permissions/signing.rs` detects it (`codesign -dv` on the running executable,
+cached), `SystemStatus` carries `ad_hoc_build`, and the Setup card explains it
+instead of prompting again — a prompt cannot fix this.
+
+**The actual cure is a stable signing identity.** A Developer ID, or even a
+self-signed certificate used consistently, gives a designated requirement that
+survives rebuilds and the grant stops evaporating. Until then, the workaround
+is: remove clide from Accessibility, then add it back, after each rebuild.
 
 ## TWO REAL BUGS (2026-09-03)
 

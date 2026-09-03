@@ -30,12 +30,30 @@ export function CopyButton({
 
   useEffect(() => {
     if (!copied) return;
-    const timer = setTimeout(() => setCopied(false), 1400);
+    const timer = setTimeout(() => setCopied(false), 1500);
     return () => clearTimeout(timer);
   }, [copied]);
 
   return (
-    <Button
+    <span className="relative inline-flex">
+      {/* A bubble rather than a label swap: the button keeps its width, so a
+          row of them does not shuffle when one is used. */}
+      <AnimatePresence>
+        {copied && (
+          <motion.span
+            initial={{ opacity: 0, y: 4, scale: 0.9 }}
+            animate={{ opacity: 1, y: -2, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.95 }}
+            transition={SPRING_QUICK}
+            className="pointer-events-none absolute -top-7 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 whitespace-nowrap rounded-full border border-line-2 bg-card px-2 py-1 text-[11px] text-ok shadow-[0_4px_12px_-4px_rgba(10,35,56,0.22)]"
+          >
+            <Check size={10} strokeWidth={3} />
+            Copied
+          </motion.span>
+        )}
+      </AnimatePresence>
+
+      <Button
       size={size}
       variant={variant}
       className={cn(copied && "text-ok", className)}
@@ -59,7 +77,8 @@ export function CopyButton({
           </motion.span>
         </AnimatePresence>
       </span>
-      {label && <span>{copied ? "Copied" : label}</span>}
-    </Button>
+      {label && <span>{label}</span>}
+      </Button>
+    </span>
   );
 }

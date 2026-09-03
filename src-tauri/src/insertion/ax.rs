@@ -17,6 +17,9 @@ pub type AXUIElementRef = *mut c_void;
 pub type AXError = i32;
 
 pub const kAXErrorSuccess: AXError = 0;
+/// Returned by every AX call when this process is not trusted. Its *absence*
+/// is what proves the grant, which is more reliable than asking for the flag.
+pub const kAXErrorAPIDisabled: AXError = -25211;
 
 // Attribute names, as the framework spells them.
 pub const ATTR_FOCUSED_UI_ELEMENT: &str = "AXFocusedUIElement";
@@ -54,8 +57,49 @@ extern "C" {
 ///
 /// Without this, every AX call returns `kAXErrorAPIDisabled` and insertion
 /// falls through to the clipboard path.
+///
+/// # Why this does not simply return `AXIsProcessTrusted()`
+///
+/// That flag is resolved when the process first asks and can then stay stale
+/// for the lifetime of the process. Granting Accessibility while Clide is
+/// running — which is exactly what onboarding asks people to do — leaves it
+/// reporting `false` until the app is relaunched, so the user sees the switch
+/// on in System Settings while Clide insists it is off.
+///
+/// So the flag is only the fast path. When it says no, Clide *tries an
+/// Accessibility call* and looks at the error: anything other than
+/// `kAXErrorAPIDisabled` means the API is answering us, which is the thing the
+/// permission actually governs. Asking by doing cannot go stale.
 pub fn is_process_trusted() -> bool {
-    unsafe { AXIsProcessTrusted() != 0 }
+    if unsafe { AXIsProcessTrusted() != 0 } {
+        return true;
+    }
+    accessibility_api_responds()
+}
+
+/// Probe the Accessibility API and report whether it answered at all.
+///
+/// The *value* is irrelevant — "nothing is focused" is a perfectly good answer
+/// from a trusted process. Only `kAXErrorAPIDisabled` means untrusted.
+fn accessibility_api_responds() -> bool {
+    unsafe {
+        let system = AXUIElementCreateSystemWide();
+        if system.is_null() {
+            return false;
+        }
+
+        let attribute = CFString::from_static_string("AXFocusedApplication");
+        let mut value: CFTypeRef = std::ptr::null();
+        let status =
+            AXUIElementCopyAttributeValue(system, attribute.as_concrete_TypeRef(), &mut value);
+
+        if !value.is_null() {
+            CFRelease(value);
+        }
+        CFRelease(system as CFTypeRef);
+
+        status != kAXErrorAPIDisabled
+    }
 }
 
 /// Ask macOS to show its "allow Accessibility" dialog.

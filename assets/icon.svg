@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!--
+    clide's app icon.
+
+    The five-bar mark the app and the site already use, at icon scale, and
+    nothing else: no glyph, no gradient sweep, no inner shadow. A dictation
+    utility lives in the Dock and the menu bar, so it has to survive 16px —
+    detail that only reads at 512 is decoration.
+
+    Bars on paper rather than paper on blue, so the icon is recognisably the
+    same object as the wordmark inside the app.
+  -->
+  <defs>
+    <radialGradient id="paper" cx="30%" cy="22%" r="92%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="55%" stop-color="#F1F8FC"/>
+      <stop offset="100%" stop-color="#E2EEF7"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1024" height="1024" rx="228" fill="url(#paper)"/>
+
+  <!-- Voice blue, and only voice blue. Heights follow the wordmark's rhythm. -->
+  <g fill="#3B7CA8">
+    <rect x="243" y="446" width="86" height="132" rx="43"/>
+    <rect x="365" y="371" width="86" height="282" rx="43"/>
+    <rect x="487" y="283" width="86" height="458" rx="43"/>
+    <rect x="609" y="404" width="86" height="216" rx="43"/>
+    <rect x="731" y="462" width="86" height="100" rx="43"/>
+  </g>
+
+  <!-- Holds the silhouette against a white Dock or a white page. -->
+  <rect
+    x="4" y="4" width="1016" height="1016" rx="226"
+    fill="none" stroke="#CFE0EC" stroke-width="8"
+  />
+</svg>

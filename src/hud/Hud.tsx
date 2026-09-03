@@ -43,10 +43,24 @@ export function Hud() {
         {state.kind !== "idle" && (
           <motion.div
             key="hud"
-            initial={{ opacity: 0, y: 10, scale: 0.96 }}
+            initial={{ opacity: 0, y: 26, scale: 0.72 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 6, scale: 0.97 }}
-            transition={{ type: "spring", stiffness: 470, damping: 34, mass: 0.7 }}
+            exit={{
+              opacity: 0,
+              y: 14,
+              scale: 0.78,
+              // Leaving is quicker than arriving, so the HUD gets out of the
+              // way rather than lingering over the text it just inserted.
+              transition: { duration: 0.16, ease: [0.4, 0, 1, 1] },
+            }}
+            transition={{
+              // Underdamped, so it overshoots and settles: the HUD appears
+              // over whatever the user is typing in and should announce itself.
+              type: "spring",
+              stiffness: 560,
+              damping: 22,
+              mass: 0.62,
+            }}
             className={cn(
               "pointer-events-auto relative flex flex-col overflow-hidden rounded-[13px]",
               "border border-line-2 bg-card/92 backdrop-blur-xl",

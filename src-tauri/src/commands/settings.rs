@@ -32,6 +32,10 @@ pub struct SystemStatus {
     /// Whether this provider takes an API key at all. Without it the UI cannot
     /// tell "key stored" apart from "never needed one".
     pub provider_needs_key: bool,
+    /// True when this build is ad-hoc signed, which makes macOS drop the
+    /// Accessibility grant on every rebuild even though System Settings still
+    /// shows the switch on. Lets the UI explain the contradiction.
+    pub ad_hoc_build: bool,
     /// True when a dictation would work end to end right now.
     pub ready: bool,
 }
@@ -85,6 +89,7 @@ pub fn get_system_status(app: AppHandle) -> SystemStatus {
         model_name,
         provider_configured,
         provider_needs_key,
+        ad_hoc_build: crate::permissions::is_ad_hoc(),
     }
 }
 

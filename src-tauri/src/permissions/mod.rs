@@ -6,11 +6,13 @@
 //! that the user said yes.
 
 mod microphone;
+mod signing;
 mod speech;
 
 use serde::Serialize;
 
 pub use microphone::request_microphone_access;
+pub use signing::is_ad_hoc;
 pub use speech::request as request_speech_access;
 
 use crate::insertion::ax;
