@@ -9,8 +9,10 @@ repository is for release binaries.
 Read `blueprint.md` (product truth) and `AGENTS.md` (engineering rules) first —
 this file only records *state of the build*, never product decisions.
 
-**Last updated:** 2026-09-03 — **Parakeet wired, Models page built**
-(149 tests passing, clippy clean). Six providers: Groq, OpenAI, Deepgram,
+**Last updated:** 2026-09-03 — **feel pass**: window dragging fixed, HUD
+lowered, motion vocabulary added, Settings decluttered, real usage stats,
+**fallback system** (160 tests passing, clippy clean). Parakeet and the Models
+page landed earlier the same day. Six providers: Groq, OpenAI, Deepgram,
 ElevenLabs, AssemblyAI, local Whisper, local Parakeet. Issue 1 still blocked on
 the missing Groq key.
 
@@ -92,6 +94,79 @@ constants. The aurora and voice-presence code are independent and stay.
 
 `Ribbon.tsx` took a `behavior` prop and now says "Hold" or "Press" to match the
 card beneath it.
+
+## THE FEEL PASS (2026-09-03)
+
+User feedback: pages felt empty, the window would not drag by its top bar, the
+app was "bland" and wanted "dopamine through animations", Settings was
+"cluttered and really tightly compacted", and the HUD sat "too much into the
+air".
+
+### The window-drag bug — read this before touching the title bar
+
+`-webkit-app-region: drag` **is in the built CSS and this webview ignores it.**
+Only the native overlay strip at the very top was draggable, which is why the
+window felt stuck. The fix is `data-tauri-drag-region` on the header (and on the
+non-interactive children), which is Tauri's own handler. Do not "simplify" it
+back to the CSS class.
+
+### Motion
+
+`lib/motion.ts` is the shared vocabulary — one spring, one easing, `PRESS`,
+`LIFT`, `enter()`, and a single `LAND` beat. Applied through `Button` and
+`Card`, so it is consistent rather than sprinkled.
+
+The governing rule is already in the blueprint: *while working, clide
+disappears; when opened, clide comes alive.* The first half was built and the
+second was not. **Nothing exceeds ~320 ms**, and anything on the click path
+resolves in half that — motion that makes you wait is latency in a costume.
+`prefers-reduced-motion` is collapsed globally in `theme.css`, so individual
+components do not check it.
+
+### Emptiness
+
+`UsageCard` fills the dead lower half with **real counts** — words, dictations,
+distinct apps, and a day streak, all `COUNT`/`SUM` over actual rows
+(`database/transcripts::usage`, with tests for the week boundary and for a
+streak that stops at the first gap). When there is nothing yet the card says so
+rather than showing confident zeroes.
+
+Grid note: Recent (8 wide) previously left a 4-wide hole because Usage (8)
+could not sit beside it. Recent now pairs with Setup and Usage runs full width.
+
+### Settings
+
+Each section is now a `Card` with a fixed heading column and the controls
+beside it, instead of bare blocks stacked down the page. That was the whole
+"cluttered" complaint — there was no grouping and nothing to aim at.
+
+### HUD
+
+`BOTTOM_MARGIN` was 96 px *plus* 16 px of padding inside the window. Now 24 px
+and 4 px.
+
+## THE FALLBACK SYSTEM (2026-09-03) — and how it stays inside blueprint §12
+
+The user asked for "is your model not available? use a simple fallback". Taken
+literally that is the "automatic cloud roulette" §12 forbids, because silently
+sending someone's voice to a vendor they did not pick is a privacy decision
+Clide should not make alone. `dictation/fallback.rs` reconciles the two:
+
+1. **Local engines are always safe** to fall back to — the audio never leaves
+   the machine, so no boundary is crossed. This is the default
+   (`FallbackPolicy::LocalOnly`).
+2. **Cloud-to-cloud is opt-in** (`AnyConfigured`), never the default.
+3. **No fallback is silent.** `transcription:fell-back` fires and the HUD shows
+   "via <provider>", so a transcript that reads differently always has an
+   explanation.
+
+A provider is only a candidate when it is genuinely usable: a local engine with
+nothing downloaded, or a cloud one with no key, is skipped. Local candidates
+are always tried before cloud ones. There are tests for each rule, including
+the privacy one — `local_only_never_reaches_for_a_cloud_provider`.
+
+Failure reporting keeps the **original** error, not the last fallback's: that is
+the one the user needs to act on.
 
 ## THE MODELS PAGE (2026-09-03) — built
 

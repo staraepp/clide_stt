@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Check, Copy, RotateCw, X } from "lucide-react";
 
@@ -8,7 +9,12 @@ import { useMicLevel } from "@/dictation/useMicLevel";
 import { useSystemStatus } from "@/app/useSystemStatus";
 import { failureDetail, stateLabel } from "@/dictation/labels";
 import * as commands from "@/lib/commands";
-import { transcriptOf, type DictationState } from "@/lib/types";
+import { EVENTS, on } from "@/lib/events";
+import {
+  transcriptOf,
+  type DictationState,
+  type FallbackPayload,
+} from "@/lib/types";
 import { cn } from "@/lib/cn";
 
 /**
@@ -22,6 +28,7 @@ import { cn } from "@/lib/cn";
 export function Hud() {
   const state = useDictationState();
   const level = useMicLevel();
+  const fellBack = useFallbackNotice(state);
   // The HUD never takes focus, so this only refetches when settings change —
   // which is the one thing that can alter how the chip should render.
   const { status } = useSystemStatus();
@@ -31,7 +38,7 @@ export function Hud() {
   const expanded = failure !== null;
 
   return (
-    <div className="flex h-full w-full items-end justify-center pb-4">
+    <div className="flex h-full w-full items-end justify-center pb-1">
       <AnimatePresence>
         {state.kind !== "idle" && (
           <motion.div
@@ -62,14 +69,15 @@ export function Hud() {
 
             <div className="relative flex items-center gap-2.5 px-3.5 py-2.5">
               <Visual state={state} levelRef={level} />
-              <span
-                className={cn(
-                  "whitespace-nowrap text-[12.5px]",
-                  expanded ? "text-ink" : "text-ink",
-                )}
-              >
+              <span className="whitespace-nowrap text-[12.5px] text-ink">
                 {stateLabel(state)}
               </span>
+
+              {fellBack && (
+                <span className="whitespace-nowrap text-[11px] text-warn">
+                  via {fellBack.usedProvider}
+                </span>
+              )}
             </div>
 
             {failure && (
@@ -106,6 +114,29 @@ export function Hud() {
       </AnimatePresence>
     </div>
   );
+}
+
+/**
+ * Remember which engine rescued the current dictation.
+ *
+ * Cleared when the next one starts, so the notice belongs to the transcript it
+ * describes rather than lingering.
+ */
+function useFallbackNotice(state: DictationState) {
+  const [notice, setNotice] = useState<FallbackPayload | null>(null);
+
+  useEffect(() => {
+    const subscription = on(EVENTS.transcriptionFellBack, setNotice);
+    return () => {
+      subscription.then((unsubscribe) => unsubscribe());
+    };
+  }, []);
+
+  useEffect(() => {
+    if (state.kind === "capturing") setNotice(null);
+  }, [state.kind]);
+
+  return notice;
 }
 
 /** The left-hand glyph: waveform, activity shimmer, tick, or warning. */

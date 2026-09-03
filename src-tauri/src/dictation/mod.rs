@@ -2,6 +2,7 @@
 //! moves audio through transcription, processing, and insertion.
 
 pub mod events;
+pub mod fallback;
 pub mod machine;
 pub mod pipeline;
 pub mod session;

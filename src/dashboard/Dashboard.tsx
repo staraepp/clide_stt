@@ -2,6 +2,7 @@ import { DictationCard } from "./cards/DictationCard";
 import { ProviderCard } from "./cards/ProviderCard";
 import { ModeCard } from "./cards/ModeCard";
 import { RecentCard } from "./cards/RecentCard";
+import { UsageCard } from "./cards/UsageCard";
 import { SystemCard } from "./cards/SystemCard";
 import { useDictationState } from "@/dictation/useDictationState";
 import { useMicLevel } from "@/dictation/useMicLevel";
@@ -31,7 +32,10 @@ export function Dashboard({
       <ProviderCard status={status} onConfigure={() => onNavigate("settings")} />
       <ModeCard mode={status.settings.mode} onChange={refresh} />
       <RecentCard onOpenHistory={() => onNavigate("history")} />
+
       <SystemCard status={status} onRefresh={refresh} />
+
+      <UsageCard />
     </div>
   );
 }

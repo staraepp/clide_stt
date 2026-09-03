@@ -1,4 +1,7 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ReactNode } from "react";
+import { motion, type HTMLMotionProps } from "motion/react";
+
+import { PRESS } from "@/lib/motion";
 import { cn } from "@/lib/cn";
 
 type Variant = "primary" | "surface" | "ghost" | "danger";
@@ -22,7 +25,8 @@ const SIZE: Record<Size, string> = {
   lg: "h-10 px-4 text-[13.5px] rounded-ctl gap-2",
 };
 
-interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
+interface Props extends Omit<HTMLMotionProps<"button">, "ref" | "children"> {
+  children?: ReactNode;
   variant?: Variant;
   size?: Size;
   icon?: ReactNode;
@@ -37,8 +41,9 @@ export function Button({
   ...rest
 }: Props) {
   return (
-    <button
+    <motion.button
       type="button"
+      {...PRESS}
       className={cn(
         "no-drag inline-flex items-center justify-center whitespace-nowrap",
         "transition-colors duration-150",
@@ -51,6 +56,6 @@ export function Button({
     >
       {icon}
       {children}
-    </button>
+    </motion.button>
   );
 }

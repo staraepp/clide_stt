@@ -6,6 +6,7 @@
  */
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
+  FallbackPayload,
   DownloadProgress, DictationState } from "./types";
 
 export const EVENTS = {
@@ -16,6 +17,7 @@ export const EVENTS = {
   transcriptionStarted: "transcription:started",
   transcriptionComplete: "transcription:complete",
   transcriptionFailed: "transcription:failed",
+  transcriptionFellBack: "transcription:fell-back",
   processingStarted: "processing:started",
   processingComplete: "processing:complete",
   insertionStarted: "insertion:started",
@@ -54,6 +56,7 @@ interface EventMap {
   [EVENTS.transcriptionStarted]: null;
   [EVENTS.transcriptionComplete]: TextPayload;
   [EVENTS.transcriptionFailed]: FailurePayload;
+  [EVENTS.transcriptionFellBack]: FallbackPayload;
   [EVENTS.processingStarted]: null;
   [EVENTS.processingComplete]: TextPayload;
   [EVENTS.insertionStarted]: null;

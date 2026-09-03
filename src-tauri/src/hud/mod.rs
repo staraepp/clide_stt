@@ -11,7 +11,11 @@ use crate::state::AppState;
 pub const LABEL: &str = "hud";
 
 /// Gap between the HUD and the bottom of the screen, in logical pixels.
-const BOTTOM_MARGIN: f64 = 96.0;
+/// How far above the screen edge the HUD sits.
+///
+/// Close enough to read as attached to the bottom of the display rather than
+/// floating in the middle of it, but clear of the Dock.
+const BOTTOM_MARGIN: f64 = 24.0;
 
 fn window(app: &AppHandle) -> Option<WebviewWindow> {
     app.get_webview_window(LABEL)

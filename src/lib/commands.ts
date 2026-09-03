@@ -7,7 +7,9 @@
  */
 import { invoke } from "@tauri-apps/api/core";
 import type {
+  FallbackPolicy,
   ModelsPage,
+  Usage,
   AppSettings,
   DictationBehavior,
   DictationState,
@@ -124,3 +126,8 @@ export const downloadModel = (modelId: string) =>
 
 export const removeModel = (modelId: string) =>
   invoke<void>("remove_model", { modelId });
+
+export const getUsage = () => invoke<Usage>("get_usage");
+
+export const setFallbackPolicy = (fallback: FallbackPolicy) =>
+  invoke<void>("set_fallback_policy", { fallback });

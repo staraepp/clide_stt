@@ -1,8 +1,8 @@
-import { ArrowUpRight, Copy } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import { Card, CardHeader } from "@/components/Card";
 import { Button } from "@/components/Button";
+import { CopyButton } from "@/components/CopyButton";
 import { useHistory } from "@/history/useHistory";
-import * as commands from "@/lib/commands";
 import { clockTime, preview } from "@/lib/format";
 
 /**
@@ -49,15 +49,10 @@ export function RecentCard({ onOpenHistory }: { onOpenHistory: () => void }) {
               <span className="truncate text-[13.5px] text-ink">
                 {preview(transcript.text, 96)}
               </span>
-              <Button
-                size="sm"
-                variant="ghost"
+              <CopyButton
+                text={transcript.text}
                 className="opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-                onClick={() => commands.copyText(transcript.text)}
-                aria-label="Copy transcript"
-              >
-                <Copy size={12} />
-              </Button>
+              />
             </li>
           ))}
         </ul>

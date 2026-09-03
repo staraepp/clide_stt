@@ -6,6 +6,8 @@
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 
+use crate::dictation::fallback::FallbackPolicy;
+
 use crate::database::kv;
 use crate::dictation::machine::DictationBehavior;
 use crate::processing::ProcessingMode;
@@ -38,6 +40,7 @@ mod keys {
     pub const LANGUAGE: &str = "dictation.language";
     pub const INTENSITY: &str = "visual.intensity";
     pub const ONBOARDING: &str = "onboarding.complete";
+    pub const FALLBACK: &str = "dictation.fallback";
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -52,6 +55,11 @@ pub struct AppSettings {
     /// ISO-639-1, or `None` to let the provider detect it.
     pub language: Option<String>,
     pub visual_intensity: VisualIntensity,
+    /// What Clide may substitute when the chosen engine cannot run.
+    ///
+    /// Defaults to local-only, so a rescue never sends the recording to a
+    /// cloud vendor the user did not pick for it (blueprint §12).
+    pub fallback: FallbackPolicy,
     pub onboarding_complete: bool,
 }
 
@@ -66,6 +74,7 @@ impl AppSettings {
             model_id: model_id.to_string(),
             language: None,
             visual_intensity: VisualIntensity::Normal,
+            fallback: FallbackPolicy::default(),
             onboarding_complete: false,
         }
     }
@@ -102,6 +111,10 @@ pub fn load(connection: &Connection, provider_id: &str, model_id: &str) -> AppSe
             .ok()
             .flatten()
             .flatten(),
+        fallback: kv::get(connection, keys::FALLBACK)
+            .ok()
+            .flatten()
+            .unwrap_or(defaults.fallback),
         visual_intensity: kv::get(connection, keys::INTENSITY)
             .ok()
             .flatten()
@@ -121,6 +134,7 @@ pub fn save(connection: &Connection, settings: &AppSettings) -> rusqlite::Result
     kv::set(connection, keys::MODEL, &settings.model_id)?;
     kv::set(connection, keys::LANGUAGE, &settings.language)?;
     kv::set(connection, keys::INTENSITY, &settings.visual_intensity)?;
+    kv::set(connection, keys::FALLBACK, &settings.fallback)?;
     kv::set(connection, keys::ONBOARDING, &settings.onboarding_complete)?;
     Ok(())
 }

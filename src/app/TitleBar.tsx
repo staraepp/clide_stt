@@ -40,8 +40,17 @@ export function TitleBar({
       : stateLabel(state);
 
   return (
-    <header className="drag-region flex h-[50px] shrink-0 items-center gap-4 border-b border-line bg-card px-5 pl-[88px]">
-      <span className="display flex items-center gap-2 text-[14.5px]">
+    <header
+      // Tauri's own handler, not the CSS property: `-webkit-app-region` is
+      // silently ignored by this webview, which left only the native overlay
+      // strip draggable and made the window feel stuck.
+      data-tauri-drag-region
+      className="drag-region flex h-[50px] shrink-0 items-center gap-4 border-b border-line bg-card px-5 pl-[88px]"
+    >
+      <span
+        data-tauri-drag-region
+        className="display pointer-events-none flex items-center gap-2 text-[14.5px]"
+      >
         <Wordmark />
         clide
       </span>
@@ -73,7 +82,7 @@ export function TitleBar({
         })}
       </nav>
 
-      <div className="ml-auto flex items-center gap-2">
+      <div data-tauri-drag-region className="ml-auto flex items-center gap-2">
         <StatusDot
           tone={state.kind === "idle" && !status.ready ? "pending" : stateTone(state)}
           pulse={busy}

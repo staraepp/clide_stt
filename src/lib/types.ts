@@ -45,7 +45,10 @@ export interface PermissionSnapshot {
   accessibility: PermissionStatus;
 }
 
+export type FallbackPolicy = "off" | "localOnly" | "anyConfigured";
+
 export interface AppSettings {
+  fallback: FallbackPolicy;
   shortcut: string;
   behavior: DictationBehavior;
   mode: ProcessingMode;
@@ -225,3 +228,19 @@ export const FIT_LABEL: Record<Fit, string> = {
   tight: "Will be slow here",
   tooLarge: "Not enough memory",
 };
+
+/** Counts over real transcripts. Nothing here is estimated. */
+export interface Usage {
+  totalTranscripts: number;
+  transcriptsThisWeek: number;
+  wordsThisWeek: number;
+  appsThisWeek: number;
+  dayStreak: number;
+}
+
+/** Emitted when a substitute engine served the transcription. Never silent. */
+export interface FallbackPayload {
+  failedProvider: string;
+  usedProvider: string;
+  usedModel: string;
+}

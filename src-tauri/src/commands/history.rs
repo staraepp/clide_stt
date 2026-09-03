@@ -64,3 +64,11 @@ pub fn copy_text(text: String) -> Result<(), String> {
         Err("The clipboard could not be written.".into())
     }
 }
+
+/// Counts over the transcripts actually stored. See `transcripts::usage`.
+#[tauri::command]
+pub fn get_usage(app: AppHandle) -> Result<transcripts::Usage, String> {
+    let state = app.state::<AppState>();
+    let connection = state.db.lock();
+    transcripts::usage(&connection, crate::database::now_ms()).map_err(|error| error.to_string())
+}

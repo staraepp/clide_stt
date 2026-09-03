@@ -445,3 +445,153 @@ mod tests {
         );
     }
 }
+
+/// Real counts over the transcripts actually stored.
+///
+/// Every figure here is a `COUNT` or a `SUM` over rows the user produced.
+/// Nothing is estimated, and nothing is invented to fill space —
+/// `AGENTS.md` is explicit that the dashboard must not carry fake statistics.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Usage {
+    pub total_transcripts: u32,
+    pub transcripts_this_week: u32,
+    pub words_this_week: u32,
+    /// Distinct applications dictated into over the last week.
+    pub apps_this_week: u32,
+    /// Longest run of consecutive days with at least one transcript,
+    /// counting back from today. Zero when nothing was dictated today.
+    pub day_streak: u32,
+}
+
+pub fn usage(connection: &Connection, now_ms: i64) -> rusqlite::Result<Usage> {
+    const DAY_MS: i64 = 86_400_000;
+    let week_ago = now_ms - 7 * DAY_MS;
+
+    let total_transcripts: u32 =
+        connection.query_row("SELECT COUNT(*) FROM transcripts", [], |row| row.get(0))?;
+
+    let (transcripts_this_week, apps_this_week): (u32, u32) = connection.query_row(
+        "SELECT COUNT(*), COUNT(DISTINCT source_app) FROM transcripts WHERE created_at >= ?1",
+        [week_ago],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )?;
+
+    // Counting words in SQL keeps the whole transcript corpus out of the IPC
+    // boundary just to compute a number.
+    let words_this_week: u32 = {
+        let mut statement = connection
+            .prepare("SELECT text FROM transcripts WHERE created_at >= ?1")?;
+        let rows = statement.query_map([week_ago], |row| row.get::<_, String>(0))?;
+        rows.filter_map(Result::ok)
+            .map(|text| text.split_whitespace().count() as u32)
+            .sum()
+    };
+
+    let day_streak = {
+        let mut statement = connection.prepare(
+            "SELECT DISTINCT created_at / 86400000 FROM transcripts ORDER BY 1 DESC",
+        )?;
+        let days: Vec<i64> = statement
+            .query_map([], |row| row.get::<_, i64>(0))?
+            .filter_map(Result::ok)
+            .collect();
+
+        let today = now_ms / DAY_MS;
+        let mut streak = 0u32;
+        for (offset, day) in days.iter().enumerate() {
+            if *day == today - offset as i64 {
+                streak += 1;
+            } else {
+                break;
+            }
+        }
+        streak
+    };
+
+    Ok(Usage {
+        total_transcripts,
+        transcripts_this_week,
+        words_this_week,
+        apps_this_week,
+        day_streak,
+    })
+}
+
+#[cfg(test)]
+mod usage_tests {
+    use super::*;
+
+    const DAY_MS: i64 = 86_400_000;
+
+    fn seeded() -> (Connection, i64) {
+        let connection = Connection::open_in_memory().unwrap();
+        crate::database::schema::apply(&connection).unwrap();
+        // A fixed "now" well past the epoch so day arithmetic is stable.
+        (connection, 1_000 * DAY_MS + 3_600_000)
+    }
+
+    fn add(connection: &Connection, text: &str, app: &str, at: i64) {
+        insert(
+            connection,
+            NewTranscript {
+                text: text.into(),
+                source: TranscriptSource::Dictation,
+                source_app: Some(app.into()),
+            },
+            at,
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn an_empty_history_reports_zeroes_rather_than_failing() {
+        let (connection, now) = seeded();
+        let usage = usage(&connection, now).unwrap();
+        assert_eq!(usage.total_transcripts, 0);
+        assert_eq!(usage.words_this_week, 0);
+        assert_eq!(usage.day_streak, 0);
+    }
+
+    #[test]
+    fn words_and_apps_are_counted_over_the_last_week_only() {
+        let (connection, now) = seeded();
+        add(&connection, "three words here", "Notes", now - DAY_MS);
+        add(&connection, "two words", "Mail", now - 2 * DAY_MS);
+        // Older than a week: must not be counted.
+        add(&connection, "ignored entirely please", "Slack", now - 30 * DAY_MS);
+
+        let usage = usage(&connection, now).unwrap();
+        assert_eq!(usage.transcripts_this_week, 2);
+        assert_eq!(usage.words_this_week, 5);
+        assert_eq!(usage.apps_this_week, 2);
+        assert_eq!(usage.total_transcripts, 3, "the total spans all time");
+    }
+
+    #[test]
+    fn a_streak_counts_back_from_today_and_stops_at_the_first_gap() {
+        let (connection, now) = seeded();
+        add(&connection, "today", "Notes", now);
+        add(&connection, "yesterday", "Notes", now - DAY_MS);
+        add(&connection, "the day before", "Notes", now - 2 * DAY_MS);
+        // Gap on day 3, then more activity that must not extend the streak.
+        add(&connection, "long ago", "Notes", now - 4 * DAY_MS);
+
+        assert_eq!(usage(&connection, now).unwrap().day_streak, 3);
+    }
+
+    #[test]
+    fn a_streak_is_zero_when_nothing_was_dictated_today() {
+        let (connection, now) = seeded();
+        add(&connection, "yesterday only", "Notes", now - DAY_MS);
+        assert_eq!(usage(&connection, now).unwrap().day_streak, 0);
+    }
+
+    #[test]
+    fn several_transcripts_in_one_day_count_as_one_day_of_streak() {
+        let (connection, now) = seeded();
+        add(&connection, "one", "Notes", now);
+        add(&connection, "two", "Notes", now - 3_600_000);
+        assert_eq!(usage(&connection, now).unwrap().day_streak, 1);
+    }
+}

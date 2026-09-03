@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 import { motion } from "motion/react";
+
+import { EASE, LIFT } from "@/lib/motion";
 import { cn } from "@/lib/cn";
 
 /**
@@ -23,11 +25,8 @@ export function Card({ children, className, hero, index = 0 }: CardProps) {
     <motion.section
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{
-        duration: 0.42,
-        delay: Math.min(index, 6) * 0.04,
-        ease: [0.22, 1, 0.36, 1],
-      }}
+      transition={{ ...EASE, delay: Math.min(index, 6) * 0.04 }}
+      whileHover={LIFT.whileHover}
       className={cn(
         "card",
         hero && "shadow-[0_1px_2px_rgba(10,35,56,0.04),0_10px_28px_-20px_rgba(10,35,56,0.22)]",

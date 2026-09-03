@@ -143,3 +143,18 @@ pub fn reset_onboarding(app: AppHandle) -> Result<(), String> {
     events::emit_bare(&app, events::SETTINGS_CHANGED);
     Ok(())
 }
+
+/// Choose what Clide may substitute when the selected engine cannot run.
+///
+/// `anyConfigured` is the only value that lets a recording reach a cloud vendor
+/// the user did not pick, which is why it is opt-in rather than the default.
+#[tauri::command]
+pub fn set_fallback_policy(
+    app: AppHandle,
+    fallback: crate::dictation::fallback::FallbackPolicy,
+) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    state.update_settings(|settings| settings.fallback = fallback)?;
+    events::emit_bare(&app, events::SETTINGS_CHANGED);
+    Ok(())
+}

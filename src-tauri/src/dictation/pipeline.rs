@@ -167,6 +167,68 @@ async fn transcribe_and_deliver(app: &AppHandle) {
     deliver(app, processed).await;
 }
 
+/// Try each usable substitute in turn, announcing the one that works.
+///
+/// Returns `None` when the policy allows nothing, or nothing succeeds — in
+/// which case the caller reports the *original* failure, because that is the
+/// one the user needs to act on.
+async fn try_fallback(
+    app: &AppHandle,
+    state: &tauri::State<'_, AppState>,
+    policy: crate::dictation::fallback::FallbackPolicy,
+    failed_provider: &str,
+    request: &TranscriptionRequest,
+) -> Option<crate::providers::Transcription> {
+    let candidates = crate::dictation::fallback::candidates(
+        &state.providers,
+        &state.credentials,
+        policy,
+        failed_provider,
+    );
+
+    for candidate in candidates {
+        let credential = state.credentials.read(candidate.provider.id()).ok().flatten();
+
+        let mut attempt = request.clone();
+        attempt.model = candidate.model.clone();
+
+        match candidate
+            .provider
+            .transcribe(attempt, credential.as_deref())
+            .await
+        {
+            Ok(result) => {
+                tracing::info!(
+                    failed = %failed_provider,
+                    rescued_by = %result.provider,
+                    model = %result.model,
+                    "fell back to another engine"
+                );
+                // Never silent: the HUD names what actually ran.
+                events::emit(
+                    app,
+                    events::TRANSCRIPTION_FELL_BACK,
+                    events::FallbackPayload {
+                        failed_provider: failed_provider.to_string(),
+                        used_provider: candidate.provider.name().to_string(),
+                        used_model: result.model.clone(),
+                    },
+                );
+                return Some(result);
+            }
+            Err(error) => {
+                tracing::debug!(
+                    candidate = %candidate.provider.id(),
+                    %error,
+                    "fallback candidate also failed"
+                );
+            }
+        }
+    }
+
+    None
+}
+
 async fn transcribe(app: &AppHandle) -> Option<String> {
     let state = app.state::<AppState>();
     events::emit_bare(app, events::TRANSCRIPTION_STARTED);
@@ -176,9 +238,14 @@ async fn transcribe(app: &AppHandle) -> Option<String> {
         return None;
     };
 
-    let (provider_id, model_id, language) = {
+    let (provider_id, model_id, language, policy) = {
         let settings = state.settings();
-        (settings.provider_id, settings.model_id, settings.language)
+        (
+            settings.provider_id,
+            settings.model_id,
+            settings.language,
+            settings.fallback,
+        )
     };
 
     let Some(provider) = state.providers.get(&provider_id) else {
@@ -207,7 +274,23 @@ async fn transcribe(app: &AppHandle) -> Option<String> {
         prompt: None,
     };
 
-    match provider.transcribe(request, credential.as_deref()).await {
+    let first_attempt = provider.transcribe(request.clone(), credential.as_deref()).await;
+
+    // Only reach for a substitute once the chosen engine has actually failed,
+    // and never silently: whatever runs is named in the HUD. See
+    // `dictation::fallback` for why local engines are safe by default and
+    // cloud ones are not.
+    let outcome = match first_attempt {
+        Ok(result) => Ok(result),
+        Err(original) => {
+            match try_fallback(app, &state, policy, &provider_id, &request).await {
+                Some(result) => Ok(result),
+                None => Err(original),
+            }
+        }
+    };
+
+    match outcome {
         Ok(result) => {
             tracing::info!(
                 provider = %result.provider,

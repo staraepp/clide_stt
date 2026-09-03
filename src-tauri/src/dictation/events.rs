@@ -23,6 +23,9 @@ pub const DICTATION_STOPPED: &str = "dictation:stopped";
 pub const TRANSCRIPTION_STARTED: &str = "transcription:started";
 pub const TRANSCRIPTION_COMPLETE: &str = "transcription:complete";
 pub const TRANSCRIPTION_FAILED: &str = "transcription:failed";
+/// Emitted when a substitute engine served the transcription. A fallback is
+/// never silent — see `dictation::fallback`.
+pub const TRANSCRIPTION_FELL_BACK: &str = "transcription:fell-back";
 
 pub const PROCESSING_STARTED: &str = "processing:started";
 pub const PROCESSING_COMPLETE: &str = "processing:complete";
@@ -79,4 +82,13 @@ pub fn emit<T: Serialize + Clone>(app: &AppHandle, name: &str, payload: T) {
 
 pub fn emit_bare(app: &AppHandle, name: &str) {
     emit(app, name, ());
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FallbackPayload {
+    pub failed_provider: String,
+    /// The display name of whatever actually ran, for the HUD.
+    pub used_provider: String,
+    pub used_model: String,
 }
