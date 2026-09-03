@@ -4,7 +4,11 @@ import type { RefObject } from "react";
 import { Waveform } from "@/components/Waveform";
 import { StatusDot } from "@/components/StatusDot";
 import { stateTone, stateLabel, failureDetail } from "@/dictation/labels";
-import { transcriptOf, type DictationState } from "@/lib/types";
+import {
+  transcriptOf,
+  type DictationBehavior,
+  type DictationState,
+} from "@/lib/types";
 import { cn } from "@/lib/cn";
 
 /**
@@ -20,10 +24,12 @@ export function Ribbon({
   state,
   levelRef,
   shortcut,
+  behavior,
 }: {
   state: DictationState;
   levelRef: RefObject<number>;
   shortcut: string;
+  behavior: DictationBehavior;
 }) {
   const failure = failureDetail(state);
   const transcript = transcriptOf(state);
@@ -87,7 +93,7 @@ export function Ribbon({
             >
               {failure ??
                 transcript ??
-                `Hold ${shortcut} anywhere and speak.`}
+                `${behavior === "hold" ? "Hold" : "Press"} ${shortcut} anywhere and speak.`}
             </motion.p>
           )}
         </AnimatePresence>

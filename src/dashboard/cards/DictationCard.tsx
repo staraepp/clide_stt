@@ -40,6 +40,7 @@ export function DictationCard({
         state={state}
         levelRef={levelRef}
         shortcut={shortcutKeys(status.settings.shortcut).join(" ")}
+        behavior={status.settings.behavior}
       />
 
       <div className="mt-auto flex flex-wrap items-center gap-2 pt-4">

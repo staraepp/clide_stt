@@ -1,12 +1,17 @@
 /**
- * clide's ambient background.
+ * clide's ambient fluid field.
  *
- * A pale blue wash over paper — the same light the marketing site's hero sits
- * in. It is almost invisible at rest and only gathers while clide is listening,
- * which makes it part of the "blue means voice" rule rather than decoration.
+ * Adapted from the marketing site's WebGL2 aurora, but intentionally kept to
+ * one WebGL1 fullscreen pass for the app. The site's simplex/domain-warped
+ * motion is preserved; its pointer flowmap, bloom, grain, and extra grid pass
+ * are not. That keeps an idle dictation utility inexpensive and compatible
+ * with the existing Reduced / Normal / High runtime controls.
  *
- * Deliberately cheap: one fullscreen triangle, three fbm evaluations, no
- * textures, no framebuffers.
+ * There is one field, at two intensities. At rest it renders in cool blue-grey
+ * so the window has depth instead of being flat paper; as `u_presence` rises it
+ * gathers into the site's oceanic blues. Idle is therefore atmosphere rather
+ * than a second decorative object competing with the ribbon, and the product
+ * rule that blue means voice still holds.
  */
 
 export const VERTEX_SHADER = /* glsl */ `
@@ -25,70 +30,196 @@ precision mediump float;
 
 uniform vec2  u_resolution;
 uniform float u_time;
-/** 0 = reduced, 0.5 = normal, 1 = high. Scales how far the wash can travel. */
+/** 0 = reduced, 0.5 = normal, 1 = high. */
 uniform float u_intensity;
-/** Eased 0..1: how present the wash is. Rises while clide is listening. */
+/** Eased 0..1 while clide is capturing, transcribing, or inserting. */
 uniform float u_presence;
-/** Microphone level, 0..1. Only non-zero at High intensity while dictating. */
+/** Microphone level, 0..1. Only non-zero at High intensity while capturing. */
 uniform float u_energy;
 
-float hash(vec2 p) {
-  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+vec3 mod289(vec3 x) {
+  return x - floor(x * (1.0 / 289.0)) * 289.0;
 }
 
-float noise(vec2 p) {
-  vec2 i = floor(p);
-  vec2 f = fract(p);
-  // Quintic interpolation: no visible grid seams in a slow-moving field.
-  vec2 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
-  return mix(
-    mix(hash(i + vec2(0.0, 0.0)), hash(i + vec2(1.0, 0.0)), u.x),
-    mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x),
-    u.y
+vec4 mod289(vec4 x) {
+  return x - floor(x * (1.0 / 289.0)) * 289.0;
+}
+
+vec4 permute(vec4 x) {
+  return mod289(((x * 34.0) + 1.0) * x);
+}
+
+vec4 taylorInvSqrt(vec4 r) {
+  return 1.79284291400159 - 0.85373472095314 * r;
+}
+
+// 3D simplex noise from the same family used by clide's marketing-site
+// aurora. Time is the third dimension, so motion stays fluid rather than
+// looking like a 2D texture sliding across the window.
+float snoise(vec3 v) {
+  const vec2 C = vec2(1.0 / 6.0, 1.0 / 3.0);
+  const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+
+  vec3 i = floor(v + dot(v, C.yyy));
+  vec3 x0 = v - i + dot(i, C.xxx);
+  vec3 g = step(x0.yzx, x0.xyz);
+  vec3 l = 1.0 - g;
+  vec3 i1 = min(g.xyz, l.zxy);
+  vec3 i2 = max(g.xyz, l.zxy);
+  vec3 x1 = x0 - i1 + C.xxx;
+  vec3 x2 = x0 - i2 + C.yyy;
+  vec3 x3 = x0 - D.yyy;
+
+  i = mod289(i);
+  vec4 p = permute(
+    permute(
+      permute(i.z + vec4(0.0, i1.z, i2.z, 1.0))
+      + i.y + vec4(0.0, i1.y, i2.y, 1.0)
+    ) + i.x + vec4(0.0, i1.x, i2.x, 1.0)
+  );
+
+  float n_ = 1.0 / 7.0;
+  vec3 ns = n_ * D.wyz - D.xzx;
+  vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+  vec4 x_ = floor(j * ns.z);
+  vec4 y_ = floor(j - 7.0 * x_);
+  vec4 x = x_ * ns.x + ns.yyyy;
+  vec4 y = y_ * ns.x + ns.yyyy;
+  vec4 h = 1.0 - abs(x) - abs(y);
+  vec4 b0 = vec4(x.xy, y.xy);
+  vec4 b1 = vec4(x.zw, y.zw);
+  vec4 s0 = floor(b0) * 2.0 + 1.0;
+  vec4 s1 = floor(b1) * 2.0 + 1.0;
+  vec4 sh = -step(h, vec4(0.0));
+  vec4 a0 = b0.xzyw + s0.xzyw * sh.xxyy;
+  vec4 a1 = b1.xzyw + s1.xzyw * sh.zzww;
+  vec3 p0 = vec3(a0.xy, h.x);
+  vec3 p1 = vec3(a0.zw, h.y);
+  vec3 p2 = vec3(a1.xy, h.z);
+  vec3 p3 = vec3(a1.zw, h.w);
+
+  vec4 norm = taylorInvSqrt(vec4(
+    dot(p0, p0),
+    dot(p1, p1),
+    dot(p2, p2),
+    dot(p3, p3)
+  ));
+  p0 *= norm.x;
+  p1 *= norm.y;
+  p2 *= norm.z;
+  p3 *= norm.w;
+
+  vec4 m = max(
+    0.6 - vec4(dot(x0, x0), dot(x1, x1), dot(x2, x2), dot(x3, x3)),
+    0.0
+  );
+  m *= m;
+  return 42.0 * dot(
+    m * m,
+    vec4(dot(p0, x0), dot(p1, x1), dot(p2, x2), dot(p3, x3))
   );
 }
 
-float fbm(vec2 p) {
-  float total = 0.0;
-  float amplitude = 0.5;
-  for (int octave = 0; octave < 4; octave++) {
-    total += amplitude * noise(p);
-    p = p * 2.02 + vec2(1.7, 9.2);
-    amplitude *= 0.5;
-  }
-  return total;
+// Two stages of domain warping create the website shader's liquid folds with
+// five noise evaluations and no textures or off-screen framebuffers.
+float fluidNoise(vec2 uv, float time) {
+  float n1 = snoise(vec3(uv * 0.62, time * 0.32));
+  float n2 = snoise(vec3(uv * 0.62 + 5.2, time * 0.30 + 1.3));
+  vec2 firstWarp = vec2(n1, n2) * 0.56;
+
+  float n3 = snoise(vec3((uv + firstWarp) * 0.72 + 1.7, time * 0.27 + 3.1));
+  float n4 = snoise(vec3((uv + firstWarp) * 0.72 + 9.2, time * 0.25 + 5.7));
+  vec2 secondWarp = vec2(n3, n4) * 0.48;
+
+  return snoise(vec3((uv + firstWarp + secondWarp) * 0.56, time * 0.22));
 }
 
 void main() {
-  vec2 p = (gl_FragCoord.xy * 2.0 - u_resolution) / min(u_resolution.x, u_resolution.y);
+  vec2 uv = gl_FragCoord.xy / u_resolution;
+  float aspect = u_resolution.x / u_resolution.y;
+  vec2 fieldUv = vec2(uv.x * aspect, uv.y);
 
-  float t = u_time * 0.045;
+  // Slow at Normal, a little more alive at High. Reduced is rendered once by
+  // the React runtime with u_time fixed at zero.
+  float time = u_time * mix(0.12, 0.22, u_intensity);
+  fieldUv = fieldUv * 1.62 + vec2(-0.72, -0.28);
+  fieldUv += vec2(time * 0.055, -time * 0.028);
 
-  // Two rounds of domain warping give the wash its slow drift with no
-  // per-frame CPU work.
-  vec2 q = vec2(fbm(p * 0.9 + vec2(0.0, t)), fbm(p * 0.9 + vec2(5.2, 1.3 - t)));
-  vec2 r = vec2(
-    fbm(p + 1.5 * q + vec2(1.7, 9.2) + t * 0.55),
-    fbm(p + 1.5 * q + vec2(8.3, 2.8) - t * 0.4)
+  float primary = fluidNoise(fieldUv, time) * 0.5 + 0.5;
+  float crossFlow = snoise(vec3(
+    fieldUv * 0.78 + vec2(3.7, -2.1),
+    time * 0.18 + 8.0
+  )) * 0.5 + 0.5;
+
+  // Thin contour bands make the field read as an aurora rather than generic
+  // cloudy noise. Energy widens and brightens them while the user speaks.
+  float contourPhase = primary * 2.25 + crossFlow * 0.48 + uv.y * 0.22;
+  float contourDistance = abs(fract(contourPhase) - 0.5);
+  float ribbon = 1.0 - smoothstep(
+    0.10,
+    0.32 + u_energy * 0.055,
+    contourDistance
   );
-
-  float field = clamp(fbm(p + (1.15 + u_energy * 0.4) * r), 0.0, 1.0);
+  float broadField = smoothstep(0.18, 0.86, primary + crossFlow * 0.14);
 
   vec3 paper = vec3(0.957, 0.976, 0.992); // #F4F9FD
-  vec3 wash  = vec3(0.847, 0.918, 0.965);
-  vec3 deep  = vec3(0.741, 0.859, 0.929);
+  vec3 pearl = vec3(0.988, 0.994, 0.998);
+  vec3 neutralMist = vec3(0.906, 0.938, 0.961);
+  vec3 neutralDeep = vec3(0.851, 0.898, 0.933);
 
-  // At rest the wash is a hint in the upper left, echoing the site's hero.
-  // Presence is what lets it gather while clide is actually listening.
-  float resting = smoothstep(1.2, -0.9, p.x + p.y) * 0.42;
-  float weight = resting + u_presence * (0.30 + 0.34 * u_intensity);
+  // Marketing-site ocean palette. It is mixed in only through presence.
+  vec3 siteSoft = vec3(0.894, 0.953, 0.984); // #E4F3FB
+  vec3 siteCyan = vec3(0.545, 0.843, 0.949); // #8BD7F2
+  vec3 siteBlue = vec3(0.184, 0.612, 0.831); // #2F9CD4
+  vec3 voiceDeep = vec3(0.231, 0.486, 0.659); // #3B7CA8
 
-  vec3 color = mix(paper, wash, clamp(field * weight, 0.0, 1.0));
-  color = mix(color, deep, pow(field, 3.0) * u_presence * 0.42);
+  float edgeDistance = length((uv - 0.5) * vec2(1.08, 0.92));
+  float edgeFade = 1.0 - smoothstep(0.43, 0.82, edgeDistance);
+  float presence = smoothstep(0.0, 1.0, u_presence);
 
-  // Keep the corners clean so cards never sit on a busy patch.
-  float radius = length(p * vec2(0.55, 0.7));
-  color = mix(color, paper, clamp(radius * 0.5, 0.0, 0.45));
+  // The resting field fades back as voice takes over, so the two never stack
+  // into mud. Weighted low toward the top of the window, where the bento cards
+  // sit, and allowed to open up across the empty lower canvas.
+  float lowerBias = smoothstep(0.86, 0.06, uv.y);
+  float restingScale = 1.0 - presence * 0.72;
+  float neutralWeight =
+    (0.20 + 0.16 * u_intensity) * edgeFade * lowerBias * restingScale;
+
+  vec3 color = mix(paper, pearl, broadField * neutralWeight * 1.4);
+  color = mix(
+    color,
+    neutralMist,
+    ribbon * neutralWeight * (0.62 + 0.26 * u_intensity)
+  );
+  // Only the densest folds reach the deeper tone, which keeps the field
+  // reading as depth rather than as a pattern laid over the page.
+  color = mix(
+    color,
+    neutralDeep,
+    pow(ribbon, 3.0) * neutralWeight * (0.40 + 0.22 * u_intensity)
+  );
+
+  float voiceWeight = presence
+    * (0.22 + 0.22 * u_intensity + 0.13 * u_energy)
+    * edgeFade;
+
+  color = mix(color, siteSoft, broadField * voiceWeight);
+  color = mix(color, siteCyan, ribbon * voiceWeight * 0.58);
+  color = mix(
+    color,
+    siteBlue,
+    ribbon * ribbon * voiceWeight * (0.30 + 0.18 * u_energy)
+  );
+  color = mix(
+    color,
+    voiceDeep,
+    pow(ribbon, 4.0) * voiceWeight * u_intensity * 0.12
+  );
+
+  // The website's offset light source, toned down so white cards remain crisp.
+  float lightDistance = length((uv - vec2(0.86, 0.34)) * vec2(aspect, 1.0));
+  float halo = exp(-lightDistance * 2.8);
+  color = mix(color, vec3(1.0), halo * (0.028 + presence * 0.035));
 
   gl_FragColor = vec4(color, 1.0);
 }

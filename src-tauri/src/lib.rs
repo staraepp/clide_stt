@@ -10,6 +10,7 @@ pub mod database;
 pub mod dictation;
 pub mod hud;
 pub mod insertion;
+pub mod models;
 pub mod credentials;
 pub mod permissions;
 pub mod processing;
@@ -25,6 +26,7 @@ use tauri::{AppHandle, Listener, Manager};
 
 use audio::Recorder;
 use credentials::Credentials;
+use models::ModelStore;
 use database::Database;
 use providers::ProviderRegistry;
 use state::AppState;
@@ -76,6 +78,9 @@ pub fn run() {
             commands::providers::select_provider,
             commands::history::get_history,
             commands::history::search_history,
+            commands::models::list_models,
+            commands::models::download_model,
+            commands::models::remove_model,
             commands::history::delete_transcript,
             commands::history::get_source_apps,
             commands::history::copy_text,
@@ -114,8 +119,10 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     handle.manage(AppState::new(
         database,
         Credentials::new(&data_dir),
+        ModelStore::new(&data_dir),
+        http.clone(),
         recorder,
-        ProviderRegistry::new(http),
+        ProviderRegistry::new(http, ModelStore::new(&data_dir)),
     ));
 
     // Register the configured shortcut. A failure here is reported through

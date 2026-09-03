@@ -95,7 +95,13 @@ pub fn load(connection: &Connection, provider_id: &str, model_id: &str) -> AppSe
             .ok()
             .flatten()
             .unwrap_or(defaults.model_id),
-        language: kv::get(connection, keys::LANGUAGE).ok().flatten(),
+        // `None` is persisted as JSON `null`, so deserialize the same
+        // `Option<String>` shape that `save` writes. Reading it as a bare
+        // `String` treats the valid null value as corrupt and warns at launch.
+        language: kv::get::<Option<String>>(connection, keys::LANGUAGE)
+            .ok()
+            .flatten()
+            .flatten(),
         visual_intensity: kv::get(connection, keys::INTENSITY)
             .ok()
             .flatten()
@@ -158,6 +164,18 @@ mod tests {
     }
 
     #[test]
+    fn automatic_language_round_trips_as_none() {
+        let db = Database::in_memory().unwrap();
+        let settings = load(&db.lock(), "groq", "whisper-large-v3-turbo");
+        assert_eq!(settings.language, None);
+
+        save(&db.lock(), &settings).unwrap();
+
+        let reloaded = load(&db.lock(), "groq", "whisper-large-v3-turbo");
+        assert_eq!(reloaded.language, None);
+    }
+
+    #[test]
     fn one_corrupt_value_does_not_reset_the_others() {
         let db = Database::in_memory().unwrap();
         let mut settings = load(&db.lock(), "groq", "whisper-large-v3-turbo");
@@ -173,7 +191,11 @@ mod tests {
 
         let reloaded = load(&db.lock(), "groq", "whisper-large-v3-turbo");
         assert_eq!(reloaded.shortcut, "Ctrl+Shift+D", "good values were lost");
-        assert_eq!(reloaded.mode, ProcessingMode::Polished, "no fallback applied");
+        assert_eq!(
+            reloaded.mode,
+            ProcessingMode::Polished,
+            "no fallback applied"
+        );
     }
 
     #[test]

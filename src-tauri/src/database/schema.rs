@@ -8,17 +8,20 @@ use rusqlite::Connection;
 
 /// Bumped whenever `apply` gains a step. `user_version` tracks what a database
 /// on disk has already had applied.
-const TARGET_VERSION: i64 = 1;
+const TARGET_VERSION: i64 = 2;
 
 pub fn apply(connection: &Connection) -> rusqlite::Result<()> {
     connection.pragma_update(None, "journal_mode", "WAL")?;
     connection.pragma_update(None, "foreign_keys", "ON")?;
 
-    let version: i64 =
-        connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
+    let version: i64 = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
 
     if version < 1 {
         connection.execute_batch(V1)?;
+    }
+
+    if version < 2 {
+        connection.execute_batch(V2)?;
     }
 
     connection.pragma_update(None, "user_version", TARGET_VERSION)?;
@@ -73,7 +76,8 @@ AFTER UPDATE ON transcripts BEGIN
     INSERT INTO transcripts_fts (rowid, text) VALUES (new.rowid, new.text);
 END;
 
--- Non-secret preferences, JSON-encoded. Credentials live in the Keychain.
+-- Non-secret preferences, JSON-encoded. Credentials live in their dedicated
+-- store and never enter SQLite.
 CREATE TABLE IF NOT EXISTS settings (
     key   TEXT PRIMARY KEY NOT NULL,
     value TEXT NOT NULL
@@ -90,3 +94,70 @@ CREATE TABLE IF NOT EXISTS provider_configs (
 
 COMMIT;
 "#;
+
+// Remove the credential-state mirror. The credential store is authoritative;
+// keeping a second boolean in SQLite allows the two to drift whenever the file
+// is moved, removed, or becomes unreadable.
+const V2: &str = r#"
+BEGIN;
+
+CREATE TABLE provider_configs_v2 (
+    provider_id TEXT PRIMARY KEY NOT NULL,
+    model_id    TEXT,
+    updated_at  INTEGER NOT NULL
+);
+
+INSERT INTO provider_configs_v2 (provider_id, model_id, updated_at)
+SELECT provider_id, model_id, updated_at FROM provider_configs;
+
+DROP TABLE provider_configs;
+ALTER TABLE provider_configs_v2 RENAME TO provider_configs;
+
+COMMIT;
+"#;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn v2_migration_preserves_models_and_drops_credential_mirror() {
+        let connection = Connection::open_in_memory().unwrap();
+        connection.execute_batch(V1).unwrap();
+        connection.pragma_update(None, "user_version", 1).unwrap();
+        connection
+            .execute(
+                "INSERT INTO provider_configs
+                 (provider_id, model_id, credential_configured, updated_at)
+                 VALUES ('groq', 'whisper-large-v3-turbo', 1, 42)",
+                [],
+            )
+            .unwrap();
+
+        apply(&connection).unwrap();
+
+        let model: String = connection
+            .query_row(
+                "SELECT model_id FROM provider_configs WHERE provider_id = 'groq'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(model, "whisper-large-v3-turbo");
+
+        let columns: Vec<String> = connection
+            .prepare("PRAGMA table_info(provider_configs)")
+            .unwrap()
+            .query_map([], |row| row.get(1))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap();
+        assert_eq!(columns, ["provider_id", "model_id", "updated_at"]);
+        assert_eq!(
+            connection
+                .query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))
+                .unwrap(),
+            TARGET_VERSION
+        );
+    }
+}

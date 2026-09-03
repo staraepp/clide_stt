@@ -5,6 +5,7 @@ use std::sync::Mutex;
 use crate::audio::Recorder;
 use crate::credentials::Credentials;
 use crate::database::Database;
+use crate::models::ModelStore;
 use crate::dictation::DictationSession;
 use crate::providers::ProviderRegistry;
 use crate::settings::{self, AppSettings};
@@ -13,6 +14,10 @@ pub struct AppState {
     pub db: Database,
     /// Provider API keys. See `credentials` for why this is not the Keychain.
     pub credentials: Credentials,
+    /// Local model weights on this machine.
+    pub models: ModelStore,
+    /// Shared HTTP client, reused for model downloads.
+    pub http: reqwest::Client,
     pub recorder: Recorder,
     pub providers: ProviderRegistry,
     pub session: DictationSession,
@@ -32,6 +37,8 @@ impl AppState {
     pub fn new(
         db: Database,
         credentials: Credentials,
+        models: ModelStore,
+        http: reqwest::Client,
         recorder: Recorder,
         providers: ProviderRegistry,
     ) -> Self {
@@ -48,6 +55,8 @@ impl AppState {
         Self {
             db,
             credentials,
+            models,
+            http,
             recorder,
             providers,
             session: DictationSession::new(),

@@ -4,12 +4,10 @@
 //! upload of the WAV Clide already captured — no transcoding step.
 //! Everything Groq-specific stops at this module's edge.
 
-use std::time::Instant;
-
 use async_trait::async_trait;
-use serde::Deserialize;
 
 use crate::providers::error::ProviderError;
+use crate::providers::openai_compatible as compat;
 use crate::providers::traits::{
     Capabilities, CredentialRequirement, ModelInfo, QualityClass, SpeedClass, Transcription,
     TranscriptionProvider, TranscriptionRequest,
@@ -32,15 +30,6 @@ impl GroqProvider {
         Self { http }
     }
 
-    fn bearer(credential: Option<&str>) -> Result<&str, ProviderError> {
-        let key = credential
-            .map(str::trim)
-            .filter(|k| !k.is_empty())
-            .ok_or(ProviderError::MissingCredential {
-                provider: PROVIDER_ID,
-            })?;
-        Ok(key)
-    }
 }
 
 #[async_trait]
@@ -101,20 +90,8 @@ impl TranscriptionProvider for GroqProvider {
     }
 
     async fn validate_credentials(&self, credential: Option<&str>) -> Result<(), ProviderError> {
-        let key = Self::bearer(credential)?;
-
-        let response = self
-            .http
-            .get(MODELS_URL)
-            .bearer_auth(key)
-            .send()
-            .await
-            .map_err(network_error)?;
-
-        if response.status().is_success() {
-            return Ok(());
-        }
-        Err(status_error(response.status(), response.text().await.ok()))
+        let key = compat::require_key(credential, PROVIDER_ID)?;
+        compat::validate_via_models(&self.http, PROVIDER_ID, MODELS_URL, key).await
     }
 
     async fn transcribe(
@@ -122,7 +99,7 @@ impl TranscriptionProvider for GroqProvider {
         request: TranscriptionRequest,
         credential: Option<&str>,
     ) -> Result<Transcription, ProviderError> {
-        let key = Self::bearer(credential)?;
+        let key = compat::require_key(credential, PROVIDER_ID)?;
 
         if !self.has_model(&request.model) {
             return Err(ProviderError::UnknownModel {
@@ -131,135 +108,15 @@ impl TranscriptionProvider for GroqProvider {
             });
         }
 
-        let metadata = tokio::fs::metadata(request.audio.path())
-            .await
-            .map_err(|e| ProviderError::AudioUnreadable(e.to_string()))?;
-        if metadata.len() > MAX_UPLOAD_BYTES {
-            return Err(ProviderError::AudioTooLarge {
-                provider: PROVIDER_ID,
-            });
-        }
-
-        let bytes = tokio::fs::read(request.audio.path())
-            .await
-            .map_err(|e| ProviderError::AudioUnreadable(e.to_string()))?;
-
-        let file = reqwest::multipart::Part::bytes(bytes)
-            .file_name(request.audio.file_name())
-            .mime_str("audio/wav")
-            .map_err(|e| ProviderError::AudioUnreadable(e.to_string()))?;
-
-        let mut form = reqwest::multipart::Form::new()
-            .part("file", file)
-            .text("model", request.model.clone())
-            .text("response_format", "json")
-            // Dictation wants the words that were said, not a creative reading.
-            .text("temperature", "0");
-
-        if let Some(language) = request.language.clone() {
-            form = form.text("language", language);
-        }
-        if let Some(prompt) = request.prompt.clone() {
-            form = form.text("prompt", prompt);
-        }
-
-        let started = Instant::now();
-        let response = self
-            .http
-            .post(TRANSCRIPTIONS_URL)
-            .bearer_auth(key)
-            .multipart(form)
-            .send()
-            .await
-            .map_err(network_error)?;
-
-        let status = response.status();
-        if !status.is_success() {
-            let retry_after = response
-                .headers()
-                .get(reqwest::header::RETRY_AFTER)
-                .and_then(|v| v.to_str().ok())
-                .and_then(|v| v.parse::<u64>().ok());
-            let body = response.text().await.ok();
-            return Err(match status.as_u16() {
-                429 => ProviderError::RateLimited {
-                    retry_after_secs: retry_after,
-                },
-                _ => status_error(status, body),
-            });
-        }
-
-        let payload: TranscriptionPayload =
-            response
-                .json()
-                .await
-                .map_err(|e| ProviderError::MalformedResponse {
-                    provider: PROVIDER_ID,
-                    detail: e.to_string(),
-                })?;
-
-        Ok(Transcription {
-            text: payload.text,
-            provider: PROVIDER_ID.to_string(),
-            model: request.model,
-            language: payload.language.or(request.language),
-            latency_ms: started.elapsed().as_millis() as u64,
-        })
-    }
-}
-
-#[derive(Deserialize)]
-struct TranscriptionPayload {
-    text: String,
-    #[serde(default)]
-    language: Option<String>,
-}
-
-/// Groq wraps failures in `{"error": {"message": ...}}`.
-#[derive(Deserialize)]
-struct ApiErrorEnvelope {
-    error: ApiErrorBody,
-}
-
-#[derive(Deserialize)]
-struct ApiErrorBody {
-    message: String,
-}
-
-fn network_error(error: reqwest::Error) -> ProviderError {
-    ProviderError::Network {
-        provider: PROVIDER_ID,
-        // `reqwest::Error` renders the URL, never the Authorization header.
-        detail: error.to_string(),
-    }
-}
-
-fn status_error(status: reqwest::StatusCode, body: Option<String>) -> ProviderError {
-    let detail = body
-        .as_deref()
-        .and_then(|raw| serde_json::from_str::<ApiErrorEnvelope>(raw).ok())
-        .map(|envelope| envelope.error.message)
-        .or(body)
-        .unwrap_or_else(|| status.to_string());
-
-    match status.as_u16() {
-        401 | 403 => ProviderError::InvalidCredential {
-            provider: PROVIDER_ID,
-        },
-        413 => ProviderError::AudioTooLarge {
-            provider: PROVIDER_ID,
-        },
-        429 => ProviderError::RateLimited {
-            retry_after_secs: None,
-        },
-        500..=599 => ProviderError::ServiceUnavailable {
-            provider: PROVIDER_ID,
-            status: status.as_u16(),
-        },
-        _ => ProviderError::BadRequest {
-            provider: PROVIDER_ID,
-            detail,
-        },
+        compat::transcribe(
+            &self.http,
+            PROVIDER_ID,
+            TRANSCRIPTIONS_URL,
+            key,
+            request,
+            MAX_UPLOAD_BYTES,
+        )
+        .await
     }
 }
 
@@ -296,23 +153,17 @@ mod tests {
         assert!(matches!(error, ProviderError::MissingCredential { .. }));
     }
 
-    #[test]
-    fn http_statuses_map_to_recoverable_categories() {
-        let unauthorized = status_error(reqwest::StatusCode::UNAUTHORIZED, None);
-        assert!(unauthorized.needs_configuration());
-        assert!(!unauthorized.is_transient());
-
-        let outage = status_error(reqwest::StatusCode::BAD_GATEWAY, None);
-        assert!(outage.is_transient());
-
-        let too_big = status_error(reqwest::StatusCode::PAYLOAD_TOO_LARGE, None);
-        assert!(matches!(too_big, ProviderError::AudioTooLarge { .. }));
-    }
-
+    /// Groq wraps failures in `{"error": {"message": ... }}`; the shared
+    /// status mapper must recognise that envelope for this provider too.
     #[test]
     fn the_api_error_message_is_surfaced_to_the_user() {
         let body = r#"{"error":{"message":"model_not_found","type":"invalid_request_error"}}"#;
-        let error = status_error(reqwest::StatusCode::BAD_REQUEST, Some(body.into()));
+        let error = crate::providers::http::status_error(
+            PROVIDER_ID,
+            reqwest::StatusCode::BAD_REQUEST,
+            Some(body.into()),
+            None,
+        );
         assert!(error.to_string().contains("model_not_found"));
     }
 

@@ -1,8 +1,8 @@
 //! Provider configuration.
 //!
 //! API keys enter through `save_provider_key` and are written straight to the
-//! Keychain. No command returns a key, and no command echoes one back in an
-//! error message.
+//! credential store. No command returns a key, and no command echoes one back
+//! in an error message.
 
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
@@ -99,9 +99,6 @@ pub async fn save_provider_key(
         .store(&provider_id, &key)
         .map_err(|error| error.to_string())?;
 
-    provider_store::set_credential_configured(&state.db.lock(), &provider_id, true, now_ms())
-        .map_err(|error| error.to_string())?;
-
     Ok(())
 }
 
@@ -111,9 +108,6 @@ pub async fn remove_provider_key(app: AppHandle, provider_id: String) -> Result<
     state
         .credentials
         .delete(&provider_id)
-        .map_err(|error| error.to_string())?;
-
-    provider_store::set_credential_configured(&state.db.lock(), &provider_id, false, now_ms())
         .map_err(|error| error.to_string())?;
 
     Ok(())

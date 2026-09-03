@@ -6,6 +6,7 @@
 
 pub mod dictation;
 pub mod history;
+pub mod models;
 pub mod permissions;
 pub mod providers;
 pub mod settings;

@@ -2,8 +2,10 @@ import { AnimatePresence, motion } from "motion/react";
 import { Check, Copy, RotateCw, X } from "lucide-react";
 
 import { Waveform } from "@/components/Waveform";
+import { ShaderBackground } from "@/shaders/ShaderBackground";
 import { useDictationState } from "@/dictation/useDictationState";
 import { useMicLevel } from "@/dictation/useMicLevel";
+import { useSystemStatus } from "@/app/useSystemStatus";
 import { failureDetail, stateLabel } from "@/dictation/labels";
 import * as commands from "@/lib/commands";
 import { transcriptOf, type DictationState } from "@/lib/types";
@@ -20,6 +22,9 @@ import { cn } from "@/lib/cn";
 export function Hud() {
   const state = useDictationState();
   const level = useMicLevel();
+  // The HUD never takes focus, so this only refetches when settings change —
+  // which is the one thing that can alter how the chip should render.
+  const { status } = useSystemStatus();
 
   const failure = failureDetail(state);
   const transcript = transcriptOf(state);
@@ -36,13 +41,26 @@ export function Hud() {
             exit={{ opacity: 0, y: 6, scale: 0.97 }}
             transition={{ type: "spring", stiffness: 470, damping: 34, mass: 0.7 }}
             className={cn(
-              "pointer-events-auto flex flex-col overflow-hidden rounded-[13px]",
+              "pointer-events-auto relative flex flex-col overflow-hidden rounded-[13px]",
               "border border-line-2 bg-card/92 backdrop-blur-xl",
               "shadow-[0_6px_22px_-8px_rgba(10,35,56,0.28)]",
               expanded ? "w-[300px]" : "w-auto",
             )}
           >
-            <div className="flex items-center gap-2.5 px-3.5 py-2.5">
+            {/* The same field as the dashboard, at chip scale. It is the only
+                thing the user sees while dictating into another app, so the
+                voice blue lives here rather than in a static fill. Suppressed
+                on failure, where blue would read as "still working". */}
+            {!failure && (
+              <ShaderBackground
+                intensity={status?.settings.visualIntensity ?? "normal"}
+                active
+                energy={state.kind === "capturing" ? (level.current ?? 0) : 0}
+                className="opacity-70"
+              />
+            )}
+
+            <div className="relative flex items-center gap-2.5 px-3.5 py-2.5">
               <Visual state={state} levelRef={level} />
               <span
                 className={cn(
@@ -55,7 +73,7 @@ export function Hud() {
             </div>
 
             {failure && (
-              <div className="border-t border-line px-3.5 py-2.5">
+              <div className="relative border-t border-line px-3.5 py-2.5">
                 <p className="text-[11.5px] leading-relaxed text-ink-2">
                   {failure}
                 </p>
