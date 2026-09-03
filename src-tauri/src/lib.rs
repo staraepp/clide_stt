@@ -15,6 +15,7 @@ pub mod credentials;
 pub mod permissions;
 pub mod processing;
 pub mod providers;
+pub mod refine;
 pub mod settings;
 pub mod shortcuts;
 pub mod state;
@@ -93,6 +94,8 @@ pub fn run() {
             commands::settings::set_processing_mode,
             commands::settings::set_visual_intensity,
             commands::settings::set_fallback_policy,
+            commands::settings::list_refiners,
+            commands::settings::set_refine_style,
             commands::settings::set_language,
             commands::settings::complete_onboarding,
             commands::settings::reset_onboarding,

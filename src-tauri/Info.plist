@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+  <key>NSSpeechRecognitionUsageDescription</key>
+  <string>clide uses Apple's on-device speech recognition to turn what you say into text. Recognition runs on this Mac and the audio is not sent to Apple.</string>
   <key>NSMicrophoneUsageDescription</key>
   <string>Clide records your voice only while you hold the dictation shortcut, so it can transcribe what you said and type it into the app you are using.</string>
   <key>NSAppleEventsUsageDescription</key>

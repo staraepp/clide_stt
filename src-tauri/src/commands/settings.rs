@@ -158,3 +158,24 @@ pub fn set_fallback_policy(
     events::emit_bare(&app, events::SETTINGS_CHANGED);
     Ok(())
 }
+
+/// The refinement engines this build knows about, with live availability.
+///
+/// Availability is read fresh: Apple Intelligence can be switched off in
+/// System Settings while Clide is running.
+#[tauri::command]
+pub fn list_refiners(app: AppHandle) -> Vec<crate::refine::RefinerDescriptor> {
+    app.state::<AppState>().refiners.descriptors()
+}
+
+/// How far Rewrite may go. Only consulted in Rewrite mode.
+#[tauri::command]
+pub fn set_refine_style(
+    app: AppHandle,
+    style: crate::refine::RefineStyle,
+) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    state.update_settings(|settings| settings.refine_style = style)?;
+    events::emit_bare(&app, events::SETTINGS_CHANGED);
+    Ok(())
+}

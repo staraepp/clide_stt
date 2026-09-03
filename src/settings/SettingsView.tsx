@@ -4,6 +4,7 @@ import { Segmented } from "@/components/Segmented";
 import { ShortcutRecorder } from "@/components/ShortcutRecorder";
 import { Button } from "@/components/Button";
 import { ProviderSettings } from "@/providers/ProviderSettings";
+import { RefineSection } from "./RefineSection";
 import * as commands from "@/lib/commands";
 import type { SystemStatus } from "@/lib/types";
 
@@ -67,6 +68,13 @@ export function SettingsView({
         description="clide is bring-your-own-key. Keys are stored on this Mac only, in a file just your account can read. They never reach clide's database, its settings, or any log."
       >
         <ProviderSettings onChange={refresh} />
+      </Section>
+
+      <Section
+        title="Rewrite"
+        description="Rewrite mode cleans the transcript locally, then asks an on-device model to finish the job. Nothing is sent anywhere."
+      >
+        <RefineSection status={status} refresh={refresh} />
       </Section>
 
       <Section

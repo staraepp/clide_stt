@@ -23,11 +23,15 @@ pub enum ProcessingMode {
 }
 
 impl ProcessingMode {
-    /// Modes a v0.1 build can actually run. Rewrite is declared so the
-    /// contract with the UI is honest, and refused so it can never silently
-    /// fall back to something else.
+    /// Every mode this build can run.
+    ///
+    /// Rewrite is now among them: the deterministic pass happens here and a
+    /// refiner finishes the job in `dictation::pipeline`. Whether a refinement
+    /// *engine* is available is a separate question, answered by
+    /// `refine::RefinerRegistry` — and if none is, the deterministic result is
+    /// used rather than the dictation failing.
     pub fn is_available(self) -> bool {
-        matches!(self, Self::Verbatim | Self::Polished)
+        true
     }
 
     pub fn as_str(self) -> &'static str {
@@ -41,8 +45,8 @@ impl ProcessingMode {
 
 #[derive(Debug, Error)]
 pub enum ProcessingError {
-    #[error("Rewrite mode is not available yet")]
-    ModeUnavailable,
+    #[error("Rewrite needs a refinement engine that is available on this Mac")]
+    NoRefiner,
 }
 
 /// Run a raw transcript through the selected mode.
@@ -55,7 +59,10 @@ pub fn process(mode: ProcessingMode, raw: &str) -> Result<String, ProcessingErro
     let processed = match mode {
         ProcessingMode::Verbatim => normalized,
         ProcessingMode::Polished => polish::polish(&normalized),
-        ProcessingMode::Rewrite => return Err(ProcessingError::ModeUnavailable),
+        // Rewrite is finished asynchronously by `refine`; the deterministic
+        // pass still runs so the model receives tidy input, and so there is
+        // something sane to fall back to if refinement cannot run.
+        ProcessingMode::Rewrite => polish::polish(&normalized),
     };
 
     Ok(if processed.trim().is_empty() && !raw.trim().is_empty() {
@@ -87,13 +94,17 @@ mod tests {
         );
     }
 
+    /// Rewrite's deterministic half must behave exactly like Polished. The
+    /// model runs afterwards, in the pipeline — so if refinement cannot run,
+    /// what the user gets is a polished transcript, never an empty one.
     #[test]
-    fn rewrite_refuses_rather_than_silently_falling_back() {
-        assert!(matches!(
-            process(ProcessingMode::Rewrite, "anything"),
-            Err(ProcessingError::ModeUnavailable)
-        ));
-        assert!(!ProcessingMode::Rewrite.is_available());
+    fn rewrite_falls_back_to_the_polished_result() {
+        let raw = "um so  i think we should ship it";
+        assert_eq!(
+            process(ProcessingMode::Rewrite, raw).unwrap(),
+            process(ProcessingMode::Polished, raw).unwrap()
+        );
+        assert!(ProcessingMode::Rewrite.is_available());
     }
 
     #[test]

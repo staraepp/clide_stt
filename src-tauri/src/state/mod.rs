@@ -8,6 +8,7 @@ use crate::database::Database;
 use crate::models::ModelStore;
 use crate::dictation::DictationSession;
 use crate::providers::ProviderRegistry;
+use crate::refine::RefinerRegistry;
 use crate::settings::{self, AppSettings};
 
 pub struct AppState {
@@ -20,6 +21,8 @@ pub struct AppState {
     pub http: reqwest::Client,
     pub recorder: Recorder,
     pub providers: ProviderRegistry,
+    /// Text refinement, kept separate from transcription (blueprint §7).
+    pub refiners: RefinerRegistry,
     pub session: DictationSession,
 
     /// Cached copy of the persisted preferences. The database stays the
@@ -59,6 +62,7 @@ impl AppState {
             http,
             recorder,
             providers,
+            refiners: RefinerRegistry::new(),
             session: DictationSession::new(),
             settings: Mutex::new(settings),
             registered_shortcut: Mutex::new(None),

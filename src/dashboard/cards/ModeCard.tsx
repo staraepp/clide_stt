@@ -6,15 +6,15 @@ import type { ProcessingMode } from "@/lib/types";
 const DESCRIPTIONS: Record<ProcessingMode, string> = {
   verbatim: "Your words as spoken. Spacing is tidied, nothing else.",
   polished: "Local cleanup — fillers, stutters, spacing. No model, no delay.",
-  rewrite: "Rewrites speech into written prose. Coming in a later version.",
+  rewrite: "Apple Intelligence turns spoken phrasing into written prose, on this Mac.",
 };
 
 /**
  * Processing style.
  *
- * Rewrite is visible but disabled: it is a real part of the product and hiding
- * it would misrepresent what clide is, but it is not implemented, and the
- * backend refuses it rather than quietly falling back to Polished.
+ * All three modes are live. Rewrite runs the same deterministic cleanup first
+ * and then hands the result to a refinement engine — so if no engine is
+ * available, the user still gets a polished transcript rather than a failure.
  */
 export function ModeCard({
   mode,
@@ -40,8 +40,7 @@ export function ModeCard({
           {
             value: "rewrite",
             label: "Rewrite",
-            disabled: true,
-            hint: "Coming in a later version",
+            hint: "Refines with an on-device model",
           },
         ]}
       />

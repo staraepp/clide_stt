@@ -200,17 +200,30 @@ mod tests {
 
     /// A local engine with nothing downloaded cannot serve a transcription, so
     /// it must not be offered as a rescue.
+    ///
+    /// Apple Speech is the exception and the reason this is worth having: it
+    /// ships with macOS, always has a model, and is therefore the one engine
+    /// that can rescue a dictation on a machine where nothing was downloaded.
     #[test]
-    fn a_local_engine_with_no_models_is_not_a_candidate() {
+    fn only_local_engines_with_a_usable_model_are_candidates() {
         let found = candidates(
             &registry(),
             &credentials("no-models"),
             FallbackPolicy::LocalOnly,
             "groq",
         );
+
+        for candidate in &found {
+            assert!(
+                !candidate.provider.models().is_empty(),
+                "{} was offered with no models installed",
+                candidate.provider.id()
+            );
+        }
+
         assert!(
-            found.is_empty(),
-            "an engine with no installed models was offered"
+            found.iter().any(|c| c.provider.id() == "apple"),
+            "Apple Speech ships with macOS and should always be able to rescue"
         );
     }
 

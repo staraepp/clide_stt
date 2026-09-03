@@ -8,6 +8,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
   FallbackPolicy,
+  RefineStyle,
+  RefinerDescriptor,
   ModelsPage,
   Usage,
   AppSettings,
@@ -131,3 +133,8 @@ export const getUsage = () => invoke<Usage>("get_usage");
 
 export const setFallbackPolicy = (fallback: FallbackPolicy) =>
   invoke<void>("set_fallback_policy", { fallback });
+
+export const listRefiners = () => invoke<RefinerDescriptor[]>("list_refiners");
+
+export const setRefineStyle = (style: RefineStyle) =>
+  invoke<void>("set_refine_style", { style });

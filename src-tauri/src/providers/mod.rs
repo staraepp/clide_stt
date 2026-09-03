@@ -1,5 +1,6 @@
 //! Transcription backends behind one normalised adapter interface.
 
+pub mod apple;
 pub mod assemblyai;
 pub mod deepgram;
 pub mod elevenlabs;

@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use crate::models::ModelStore;
 
+use super::apple::AppleSpeechProvider;
 use super::assemblyai::AssemblyAiProvider;
 use super::deepgram::DeepgramProvider;
 use super::elevenlabs::ElevenLabsProvider;
@@ -28,6 +29,9 @@ impl ProviderRegistry {
             // special-casing.
             providers: vec![
                 Arc::new(GroqProvider::new(http.clone())),
+                // Ships with macOS: usable on a fresh install with no key and
+                // no download, which also makes it the safest fallback.
+                Arc::new(AppleSpeechProvider::new()),
                 Arc::new(OpenAiProvider::new(http.clone())),
                 Arc::new(DeepgramProvider::new(http.clone())),
                 Arc::new(ElevenLabsProvider::new(http.clone())),

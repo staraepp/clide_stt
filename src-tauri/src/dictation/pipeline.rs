@@ -20,6 +20,7 @@ use crate::dictation::machine::{DictationInput, DictationState, FailureStage};
 use crate::hud;
 use crate::insertion;
 use crate::processing;
+use crate::refine::{RefineRequest, RefineStyle};
 use crate::providers::{AudioClip, TranscriptionRequest};
 use crate::state::AppState;
 
@@ -160,7 +161,7 @@ async fn transcribe_and_deliver(app: &AppHandle) {
     let Some(raw) = transcribe(app).await else {
         return;
     };
-    let Some(processed) = process(app, raw) else {
+    let Some(processed) = process(app, raw).await else {
         return;
     };
     persist(app, &processed);
@@ -333,7 +334,7 @@ async fn transcribe(app: &AppHandle) -> Option<String> {
     }
 }
 
-fn process(app: &AppHandle, raw: String) -> Option<String> {
+async fn process(app: &AppHandle, raw: String) -> Option<String> {
     let state = app.state::<AppState>();
 
     let Ok(next) = state.session.apply(DictationInput::TranscriptReceived) else {
@@ -342,9 +343,19 @@ fn process(app: &AppHandle, raw: String) -> Option<String> {
     events::emit_state(app, &next);
     events::emit_bare(app, events::PROCESSING_STARTED);
 
-    let mode = state.settings().mode;
+    let (mode, style) = {
+        let settings = state.settings();
+        (settings.mode, settings.refine_style)
+    };
+
     match processing::process(mode, &raw) {
         Ok(text) => {
+            let text = if mode == processing::ProcessingMode::Rewrite {
+                refine_text(app, text, style).await
+            } else {
+                text
+            };
+
             events::emit(
                 app,
                 events::PROCESSING_COMPLETE,
@@ -367,6 +378,37 @@ fn process(app: &AppHandle, raw: String) -> Option<String> {
             }
             hud::show(app);
             None
+        }
+    }
+}
+
+/// Rewrite the transcript, keeping the deterministic result if that fails.
+///
+/// Refinement is a nicety layered on words the user has already said. A model
+/// that is switched off, still downloading, or simply unhappy must never cost
+/// them the transcript — so every failure here logs and returns the input.
+async fn refine_text(app: &AppHandle, text: String, style: RefineStyle) -> String {
+    let state = app.state::<AppState>();
+
+    let Some(refiner) = state.refiners.first_available() else {
+        tracing::debug!("rewrite requested but no refinement engine is available");
+        return text;
+    };
+
+    match refiner
+        .refine(RefineRequest {
+            text: text.clone(),
+            style,
+        })
+        .await
+    {
+        Ok(refined) => {
+            tracing::info!(engine = refiner.id(), "transcript refined");
+            refined
+        }
+        Err(error) => {
+            tracing::warn!(engine = refiner.id(), %error, "refinement failed; keeping the transcript");
+            text
         }
     }
 }

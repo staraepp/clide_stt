@@ -9,10 +9,8 @@ repository is for release binaries.
 Read `blueprint.md` (product truth) and `AGENTS.md` (engineering rules) first —
 this file only records *state of the build*, never product decisions.
 
-**Last updated:** 2026-09-03 — **feel pass**: window dragging fixed, HUD
-lowered, motion vocabulary added, Settings decluttered, real usage stats,
-**fallback system** (160 tests passing, clippy clean). Parakeet and the Models
-page landed earlier the same day. Six providers: Groq, OpenAI, Deepgram,
+**Last updated:** 2026-09-03 — **Apple Speech + Apple Intelligence**: seven
+STT providers, and Rewrite mode is real (173 tests passing, clippy clean). Six providers: Groq, OpenAI, Deepgram,
 ElevenLabs, AssemblyAI, local Whisper, local Parakeet. Issue 1 still blocked on
 the missing Groq key.
 
@@ -94,6 +92,63 @@ constants. The aurora and voice-presence code are independent and stay.
 
 `Ribbon.tsx` took a `behavior` prop and now says "Hold" or "Press" to match the
 card beneath it.
+
+## APPLE SPEECH + APPLE INTELLIGENCE (2026-09-03)
+
+### Apple Speech — `providers/apple/`
+
+`SFSpeechRecognizer` through `objc2-speech`. No key, no download, models ship
+with macOS — which makes it the one engine usable on a fresh install, and
+therefore the **best fallback target**. `requiresOnDeviceRecognition` is forced
+on: a provider Clide calls local must actually be local, and without that flag
+macOS may route the audio to Apple's servers.
+
+Speech recognition is a **separate permission** from the microphone, even
+on-device. `NSSpeechRecognitionUsageDescription` is in `Info.plist` — without
+it macOS kills the process rather than denying the request.
+
+This changed an existing fallback test: Apple Speech always has a model, so it
+legitimately appears as a rescue candidate even when nothing is downloaded.
+That is the desirable behaviour, so the *test* was corrected, not the code.
+
+### Rewrite mode — `refine/`
+
+**A separate module from `providers/`, on purpose.** Blueprint §7 requires the
+STT engine and the rewrite engine stay independent so changing one never
+silently changes the other. Reusing `TranscriptionProvider` here would collapse
+exactly that distinction. It has its own trait, registry, error type, and
+setting.
+
+`refine/apple_intelligence.rs` uses the FoundationModels framework via the
+`foundation-models` crate — Apple's on-device LLM, macOS 26+, Apple Silicon,
+Apple Intelligence switched on. Availability is checked **before every request**
+rather than cached, because it can be turned off in System Settings while Clide
+is running.
+
+**Two safety properties worth preserving:**
+
+1. *Every* refine failure is recoverable, and the pipeline keeps the
+   deterministic transcript when refinement cannot run. A rewrite that fails
+   must never cost the user words they already said. There is a test asserting
+   every error variant is recoverable.
+2. The instructions forbid the model answering the transcript or adding to it.
+   A dictation tool that helpfully replies to a question you dictated is a bug.
+   Tested for both styles.
+
+`ProcessingMode::Rewrite` now runs the same deterministic polish first, then
+hands the result to a refiner — so with no engine available the user still gets
+a polished transcript.
+
+### BUILD GOTCHA — read before touching `build.rs`
+
+`foundation-models` compiles a Swift shim that links
+`libswift_Concurrency.dylib`. On this SDK that lives **only** in the Xcode
+toolchain's back-deployment directory — not `/usr/lib/swift`, not the dyld
+cache. Without an rpath the binary links fine and then **aborts at launch**
+with a dyld error that names fifty paths and no cause.
+
+`build.rs::link_swift_runtime()` adds it, resolved through `xcode-select` so a
+relocated Xcode still works. Do not remove it.
 
 ## THE FEEL PASS (2026-09-03)
 

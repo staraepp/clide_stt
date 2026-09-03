@@ -47,8 +47,11 @@ export interface PermissionSnapshot {
 
 export type FallbackPolicy = "off" | "localOnly" | "anyConfigured";
 
+export type RefineStyle = "tidy" | "written";
+
 export interface AppSettings {
   fallback: FallbackPolicy;
+  refineStyle: RefineStyle;
   shortcut: string;
   behavior: DictationBehavior;
   mode: ProcessingMode;
@@ -243,4 +246,14 @@ export interface FallbackPayload {
   failedProvider: string;
   usedProvider: string;
   usedModel: string;
+}
+
+/** A text-refinement engine, with live availability. */
+export interface RefinerDescriptor {
+  id: string;
+  name: string;
+  description: string;
+  local: boolean;
+  available: boolean;
+  unavailableReason: string | null;
 }
