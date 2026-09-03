@@ -1,5 +1,12 @@
 # Clide v2 — Agent Handoff
 
+**Canonical repository: https://github.com/staraepp/clide_stt** (branch `main`).
+
+Do not push to `staraepp/clide-react----official-release-builds-` — that repo is
+for release binaries. A `feat/clide-v2-vertical-slice` branch was pushed there
+by mistake during the 2026-09-03 session; its contents are identical to
+`clide_stt` main and the branch can be deleted.
+
 **Purpose:** if the session building Clide ends, another agent picks up here.
 Read `blueprint.md` (product truth) and `AGENTS.md` (engineering rules) first —
 this file only records *state of the build*, never product decisions.
