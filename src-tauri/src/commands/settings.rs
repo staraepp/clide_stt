@@ -7,6 +7,7 @@ use crate::dictation::events;
 use crate::dictation::machine::DictationBehavior;
 use crate::permissions::{self, PermissionSnapshot};
 use crate::processing::ProcessingMode;
+use crate::providers::CredentialRequirement;
 use crate::settings::{AppSettings, VisualIntensity};
 use crate::shortcuts;
 use crate::state::AppState;
@@ -28,6 +29,9 @@ pub struct SystemStatus {
     pub provider_name: String,
     pub model_name: String,
     pub provider_configured: bool,
+    /// Whether this provider takes an API key at all. Without it the UI cannot
+    /// tell "key stored" apart from "never needed one".
+    pub provider_needs_key: bool,
     /// True when a dictation would work end to end right now.
     pub ready: bool,
 }
@@ -52,7 +56,20 @@ pub fn get_system_status(app: AppHandle) -> SystemStatus {
         None => (settings.provider_id.clone(), settings.model_id.clone()),
     };
 
-    let provider_configured = state.credentials.is_configured(&settings.provider_id);
+    // A provider that needs no credential is always "configured". Asking the
+    // credential store about Apple Speech or a local engine would report a
+    // missing key for something that never wanted one.
+    let (provider_configured, provider_needs_key) =
+        match state.providers.get(&settings.provider_id) {
+            Some(provider) => match provider.credential_requirement() {
+                CredentialRequirement::None => (true, false),
+                CredentialRequirement::ApiKey { .. } => (
+                    state.credentials.is_configured(&settings.provider_id),
+                    true,
+                ),
+            },
+            None => (false, true),
+        };
     let shortcut_registered = registered_shortcut.is_some();
 
     SystemStatus {
@@ -67,6 +84,7 @@ pub fn get_system_status(app: AppHandle) -> SystemStatus {
         provider_name,
         model_name,
         provider_configured,
+        provider_needs_key,
     }
 }
 
@@ -178,4 +196,67 @@ pub fn set_refine_style(
     state.update_settings(|settings| settings.refine_style = style)?;
     events::emit_bare(&app, events::SETTINGS_CHANGED);
     Ok(())
+}
+
+/// Who this build is, and where to go with it.
+///
+/// The links live in Rust rather than hardcoded in the UI so the About panel
+/// and any future menu item cannot drift apart.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct About {
+    pub version: String,
+    pub commit: &'static str,
+    pub build_date: &'static str,
+    pub repository: &'static str,
+    pub website: &'static str,
+    pub issues: &'static str,
+    pub license: &'static str,
+    pub tauri_version: &'static str,
+}
+
+#[tauri::command]
+pub fn get_about() -> About {
+    About {
+        version: env!("CARGO_PKG_VERSION").to_string(),
+        commit: env!("CLIDE_COMMIT"),
+        build_date: env!("CLIDE_BUILD_DATE"),
+        repository: "https://github.com/staraepp/clide_stt",
+        website: "https://clide.staraep.fun",
+        issues: "https://github.com/staraepp/clide_stt/issues",
+        license: "MIT",
+        tauri_version: "2",
+    }
+}
+
+#[cfg(test)]
+mod credential_status_tests {
+    use crate::providers::{CredentialRequirement, ProviderRegistry, TranscriptionProvider};
+
+    fn registry() -> ProviderRegistry {
+        ProviderRegistry::new(
+            reqwest::Client::new(),
+            crate::models::ModelStore::new(&std::env::temp_dir()),
+        )
+    }
+
+    /// The bug this guards: the dashboard reported "API key needed" for Apple
+    /// Speech, which never wanted one, because the credential store was asked
+    /// about every provider regardless of whether it takes a credential.
+    #[test]
+    fn providers_that_need_no_key_are_never_reported_as_unconfigured() {
+        for descriptor in registry().descriptors() {
+            let provider = registry().get(&descriptor.id).unwrap();
+            if provider.capabilities().local {
+                assert!(
+                    matches!(
+                        provider.credential_requirement(),
+                        CredentialRequirement::None
+                    ),
+                    "{} runs locally but asks for a credential",
+                    descriptor.id
+                );
+            }
+        }
+    }
 }

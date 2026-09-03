@@ -3,6 +3,7 @@ import { StatusDot, type Tone } from "@/components/StatusDot";
 import { Button } from "@/components/Button";
 import { Keys } from "@/components/Keys";
 import * as commands from "@/lib/commands";
+import { cn } from "@/lib/cn";
 import type { PermissionStatus, SystemStatus } from "@/lib/types";
 
 function permissionTone(status: PermissionStatus): Tone {
@@ -48,7 +49,7 @@ export function SystemCard({
         }
       />
 
-      <ul className="mt-2 flex flex-col">
+      <ul className="mt-3 grid grid-cols-2 gap-2">
         <Row
           tone={permissionTone(microphone)}
           name="Microphone"
@@ -94,9 +95,10 @@ export function SystemCard({
             status.shortcutRegistered ? (
               <Keys accelerator={status.settings.shortcut} />
             ) : (
-              "Another app is using this combination"
+              "In use by another app"
             )
           }
+          wide
         />
       </ul>
 
@@ -113,17 +115,27 @@ function Row({
   name,
   value,
   action,
+  wide,
 }: {
   tone: Tone;
   name: string;
   value: React.ReactNode;
   action?: React.ReactNode;
+  /** Span both columns, for the tile whose value is widest. */
+  wide?: boolean;
 }) {
   return (
-    <li className="flex items-center gap-2.5 border-t border-line py-2.5 first:border-t-0">
-      <StatusDot tone={tone} />
-      <span className="text-[13px] text-ink">{name}</span>
-      <span className="ml-auto truncate text-[12.5px] text-ink-3">{value}</span>
+    <li
+      className={cn(
+        "flex flex-col gap-1.5 rounded-ctl border border-line bg-sunken/60 px-3 py-2.5",
+        wide && "col-span-2",
+      )}
+    >
+      <span className="flex items-center gap-2">
+        <StatusDot tone={tone} />
+        <span className="truncate text-[12.5px] text-ink">{name}</span>
+      </span>
+      <span className="truncate text-[11.5px] text-ink-3">{value}</span>
       {action}
     </li>
   );

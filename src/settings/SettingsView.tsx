@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { Card } from "@/components/Card";
+import { cn } from "@/lib/cn";
 import { Segmented } from "@/components/Segmented";
 import { ShortcutRecorder } from "@/components/ShortcutRecorder";
 import { Button } from "@/components/Button";
 import { ProviderSettings } from "@/providers/ProviderSettings";
 import { RefineSection } from "./RefineSection";
+import { AboutSection } from "./AboutSection";
 import * as commands from "@/lib/commands";
 import type { SystemStatus } from "@/lib/types";
 
@@ -18,7 +20,7 @@ export function SettingsView({
   const [shortcutError, setShortcutError] = useState<string | null>(null);
 
   return (
-    <div className="scroll-area -mr-2 flex h-full flex-col gap-3 py-3 pb-12 pr-2">
+    <div className="scroll-area -mr-2 grid h-full auto-rows-min grid-cols-12 gap-3 py-3 pb-12 pr-2">
       <Section
         title="Shortcut"
         description="One shortcut, used everywhere. Hold to talk, or press once to start and again to stop."
@@ -64,6 +66,7 @@ export function SettingsView({
       </Section>
 
       <Section
+        span="full"
         title="Transcription"
         description="clide is bring-your-own-key. Keys are stored on this Mac only, in a file just your account can read. They never reach clide's database, its settings, or any log."
       >
@@ -151,37 +154,52 @@ export function SettingsView({
           </Button>
         </div>
       </Section>
+
+      <Section
+        span="full"
+        title="About"
+        description="clide is free and open source. If something is broken, the issue tracker is the fastest way to reach us — the build number above tells us exactly what you are running."
+      >
+        <AboutSection />
+      </Section>
     </div>
   );
 }
 
 /**
- * One settings group.
+ * One settings group, sized to what it holds.
  *
- * Each sits on its own card rather than running together down the page: the
- * previous layout stacked bare blocks, which read as one dense wall with no
- * way to find the section you wanted. The heading column is fixed at a
- * comfortable reading measure and the controls sit beside it on wide windows,
- * so neither the prose nor the controls stretch across the full width.
+ * Settings used to be a stack of full-width cards, which is a list with rounded
+ * corners. Laying them out as a bento means the eye can find a section by its
+ * shape and position instead of reading every heading in order — and a control
+ * that needs two lines no longer claims the same width as one that needs ten.
  */
 function Section({
   title,
   description,
+  span = "half",
   children,
 }: {
   title: string;
   description: string;
+  /** How much of the 12-column grid this section occupies. */
+  span?: "half" | "full";
   children: React.ReactNode;
 }) {
   return (
-    <Card className="grid gap-x-10 gap-y-5 p-6 lg:grid-cols-[minmax(200px,260px)_1fr]">
+    <Card
+      className={cn(
+        "flex flex-col gap-4 p-5",
+        span === "full" ? "col-span-12" : "col-span-12 lg:col-span-6",
+      )}
+    >
       <div>
         <h2 className="display text-[15px] text-ink">{title}</h2>
         <p className="mt-1.5 text-[12.5px] leading-relaxed text-ink-2">
           {description}
         </p>
       </div>
-      <div className="min-w-0 lg:pt-0.5">{children}</div>
+      <div className="min-w-0 flex-1">{children}</div>
     </Card>
   );
 }

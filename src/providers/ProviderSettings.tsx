@@ -226,7 +226,7 @@ function ProviderRow({
               onClick={() =>
                 provider.credential.kind === "apiKey" &&
                 commands
-                  .copyText(provider.credential.helpUrl)
+                  .openUrl(provider.credential.helpUrl)
                   .then(() => setMessage("Link copied to your clipboard."))
               }
               className="no-drag mt-2.5 inline-flex items-center gap-1 text-[12px] text-ink-2 hover:text-voice-deep"

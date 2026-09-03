@@ -141,7 +141,7 @@ void main() {
 
   // Slow at Normal, a little more alive at High. Reduced is rendered once by
   // the React runtime with u_time fixed at zero.
-  float time = u_time * mix(0.12, 0.22, u_intensity);
+  float time = u_time * mix(0.30, 0.62, u_intensity);
   fieldUv = fieldUv * 1.62 + vec2(-0.72, -0.28);
   fieldUv += vec2(time * 0.055, -time * 0.028);
 
@@ -180,23 +180,40 @@ void main() {
   // The resting field fades back as voice takes over, so the two never stack
   // into mud. Weighted low toward the top of the window, where the bento cards
   // sit, and allowed to open up across the empty lower canvas.
-  float lowerBias = smoothstep(0.86, 0.06, uv.y);
-  float restingScale = 1.0 - presence * 0.72;
+  // Weighted toward the open lower canvas but no longer confined to it — the
+  // gutters between cards should carry the field too.
+  float lowerBias = 0.34 + 0.66 * smoothstep(1.05, -0.05, uv.y);
+  float restingScale = 1.0 - presence * 0.62;
   float neutralWeight =
-    (0.20 + 0.16 * u_intensity) * edgeFade * lowerBias * restingScale;
+    (0.52 + 0.30 * u_intensity) * edgeFade * lowerBias * restingScale;
+
+  // A second, faster current crossing the first. One drifting layer reads as a
+  // gradient that happens to change; two moving against each other read as
+  // something flowing.
+  float current = snoise(vec3(
+    fieldUv * 1.34 + vec2(-2.4, 4.8),
+    time * 0.44 + 11.0
+  )) * 0.5 + 0.5;
+  float currentBand = 1.0 - smoothstep(0.0, 0.42, abs(current - 0.5));
 
   vec3 color = mix(paper, pearl, broadField * neutralWeight * 1.4);
   color = mix(
     color,
     neutralMist,
-    ribbon * neutralWeight * (0.62 + 0.26 * u_intensity)
+    ribbon * neutralWeight * (0.78 + 0.30 * u_intensity)
+  );
+  // The crossing current, so the motion has a direction you can follow.
+  color = mix(
+    color,
+    neutralMist,
+    currentBand * neutralWeight * 0.42
   );
   // Only the densest folds reach the deeper tone, which keeps the field
   // reading as depth rather than as a pattern laid over the page.
   color = mix(
     color,
     neutralDeep,
-    pow(ribbon, 3.0) * neutralWeight * (0.40 + 0.22 * u_intensity)
+    pow(ribbon, 2.4) * neutralWeight * (0.62 + 0.28 * u_intensity)
   );
 
   float voiceWeight = presence

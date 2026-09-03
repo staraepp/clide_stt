@@ -34,7 +34,9 @@ export function ProviderCard({
 
       <div className="mt-auto flex items-center gap-2 pt-4 text-[12.5px] text-ink-2">
         <StatusDot tone={status.providerConfigured ? "ready" : "pending"} />
-        {status.providerConfigured ? (
+        {!status.providerNeedsKey ? (
+          "No key needed — runs on this Mac"
+        ) : status.providerConfigured ? (
           "Key stored on this Mac"
         ) : (
           <span className="inline-flex items-center gap-1.5 text-warn">

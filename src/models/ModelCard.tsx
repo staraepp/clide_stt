@@ -140,26 +140,37 @@ export function CloudModelRow({
   onSelect: () => void;
 }) {
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.32 }}
       className={cn(
-        "flex items-center gap-3 rounded-ctl border border-line px-3 py-2.5 transition-colors",
-        selected ? "border-voice bg-voice-tint/40" : "hover:bg-sunken",
+        "card flex flex-col gap-3 p-4 transition-colors",
+        selected && "border-voice bg-voice-tint/40",
       )}
     >
-      <Cloud size={13} className="shrink-0 text-ink-3" />
-      <div className="min-w-0">
-        <p className="truncate text-[13px] text-ink">{name}</p>
-        <p className="truncate text-[11.5px] text-ink-3">{description}</p>
+      <div className="flex items-start gap-2">
+        <Cloud size={13} className="mt-0.5 shrink-0 text-ink-3" />
+        <div className="min-w-0">
+          <h3 className="display truncate text-[15px]">{name}</h3>
+          <p className="mt-1 text-[12.5px] leading-relaxed text-ink-2">
+            {description}
+          </p>
+        </div>
       </div>
-      <Button
-        size="sm"
-        variant={selected ? "surface" : "primary"}
-        disabled={selected}
-        onClick={onSelect}
-        className="ml-auto"
-      >
-        {selected ? "In use" : "Use"}
-      </Button>
-    </div>
+
+      <div className="mt-auto flex items-center gap-2 border-t border-line pt-3">
+        <span className="text-[11px] text-ink-3">Runs in the cloud</span>
+        <Button
+          size="sm"
+          variant={selected ? "surface" : "primary"}
+          disabled={selected}
+          onClick={onSelect}
+          className="ml-auto"
+        >
+          {selected ? "In use" : "Use"}
+        </Button>
+      </div>
+    </motion.div>
   );
 }

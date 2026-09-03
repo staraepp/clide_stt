@@ -103,7 +103,7 @@ impl TranscriptionProvider for AppleSpeechProvider {
     fn models(&self) -> Vec<ModelInfo> {
         vec![ModelInfo {
             id: MODEL_ID.into(),
-            name: "Apple Speech".into(),
+            name: "On-device".into(),
             description: "Built into macOS. No key, no download, nothing leaves this Mac.".into(),
             speed: SpeedClass::Fast,
             quality: QualityClass::High,

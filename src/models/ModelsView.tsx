@@ -110,9 +110,7 @@ export function ModelsView() {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             className={cn(
-              provider.capabilities.local
-                ? "grid grid-cols-1 gap-2 lg:grid-cols-2"
-                : "flex flex-col gap-1.5",
+              "grid grid-cols-1 gap-2 lg:grid-cols-2",
             )}
           >
             {provider.capabilities.local

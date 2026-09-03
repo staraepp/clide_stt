@@ -9,8 +9,9 @@ repository is for release binaries.
 Read `blueprint.md` (product truth) and `AGENTS.md` (engineering rules) first —
 this file only records *state of the build*, never product decisions.
 
-**Last updated:** 2026-09-03 — **Apple Speech + Apple Intelligence**: seven
-STT providers, and Rewrite mode is real (173 tests passing, clippy clean). Six providers: Groq, OpenAI, Deepgram,
+**Last updated:** 2026-09-03 — **personality pass**: the idle field actually
+moves, the wordmark is a live meter, About panel with GitHub links, easter
+eggs, and every list became a card grid (174 tests passing, clippy clean). Six providers: Groq, OpenAI, Deepgram,
 ElevenLabs, AssemblyAI, local Whisper, local Parakeet. Issue 1 still blocked on
 the missing Groq key.
 
@@ -92,6 +93,71 @@ constants. The aurora and voice-presence code are independent and stay.
 
 `Ribbon.tsx` took a `behavior` prop and now says "Hold" or "Press" to match the
 card beneath it.
+
+## PERSONALITY PASS (2026-09-03)
+
+Feedback: "everything feels too generic", "make the idle shader actually move",
+easter eggs, GitHub/version links. Plus, mid-pass: "I don't really like the way
+everything is like a list — I'd rather it be grids, bento boxes and cards."
+
+### The shader was throttled for a problem that does not exist
+
+**Every card is opaque white.** The field is only ever seen in the gutters and
+the open canvas below, so it was never competing with text — it had been tuned
+as if it were. Time scale went from 0.12–0.22 to 0.30–0.62, resting weight from
+0.20 to 0.52, and a second faster current now crosses the first. One drifting
+layer reads as a gradient that happens to change; two moving against each other
+read as something flowing.
+
+The FPS caps, DPR cap, Reduce Motion override and blur/visibility pausing in
+`ShaderBackground` are unchanged — this is more visible, not more expensive.
+
+### The wordmark is a live level meter
+
+`components/Wordmark.tsx`. The five-bar mark breathes while idle, and while you
+are dictating its bars are **driven from the real microphone level**, straight
+from the ref in a rAF loop — going through React state would re-render the
+title bar sixty times a second. This is the one place clide's identity and its
+function are the same object; keep it that way.
+
+### Easter eggs — `app/useEasterEggs.ts`
+
+Deliberately small, and none of them change what the app *does*:
+
+- Poke the wordmark five times and it dances.
+- The Konami code pushes the shader to High and wakes the field for nine
+  seconds, then it wears off on its own.
+- A console greeting pointing at the repository — anyone opening devtools on an
+  open-source app is a potential contributor.
+
+The Konami handler ignores keystrokes while an input is focused, so it can
+never fire mid-dictation-test.
+
+### About panel — `settings/AboutSection.tsx`
+
+Version, short commit, and build date, all stamped in by `build.rs`
+(`CLIDE_COMMIT`, `CLIDE_BUILD_DATE`, with `rerun-if-changed=../.git/HEAD` so it
+cannot go stale). The commit is copyable so a bug report can name the exact
+build. Links to the repo, the site, the issue tracker and the licence, opened
+through `tauri-plugin-opener` — the provider help link used to merely *copy* a
+URL, which was weak; it opens now too.
+
+### Lists became grids
+
+Settings was seven full-width cards stacked vertically, which is a list wearing
+card clothing. It is now a 12-column bento: most sections are half width,
+Transcription and About take the full row. Setup's three rows became tiles (two
+columns with the shortcut spanning, because three across truncated
+"Accessibility"), the refine engines became cards, and cloud models now use the
+same card as local ones instead of a separate row component.
+
+### Bug found while looking at the result
+
+Apple Speech reported **"API key needed"**. `get_system_status` asked the
+credential store about every provider regardless of whether it takes a
+credential. Now it checks `credential_requirement()` first, and `SystemStatus`
+carries `provider_needs_key` so the UI can tell "key stored" apart from "never
+wanted one". Regression test in `commands::settings::credential_status_tests`.
 
 ## APPLE SPEECH + APPLE INTELLIGENCE (2026-09-03)
 

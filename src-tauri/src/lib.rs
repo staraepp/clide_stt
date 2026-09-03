@@ -96,6 +96,7 @@ pub fn run() {
             commands::settings::set_fallback_policy,
             commands::settings::list_refiners,
             commands::settings::set_refine_style,
+            commands::settings::get_about,
             commands::settings::set_language,
             commands::settings::complete_onboarding,
             commands::settings::reset_onboarding,

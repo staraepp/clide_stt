@@ -1,5 +1,6 @@
 import { motion } from "motion/react";
 import { StatusDot } from "@/components/StatusDot";
+import { Wordmark } from "@/components/Wordmark";
 import { stateLabel, stateTone } from "@/dictation/labels";
 import { isBusy, type DictationState, type SystemStatus } from "@/lib/types";
 import { cn } from "@/lib/cn";
@@ -25,11 +26,13 @@ export function TitleBar({
   onChange,
   status,
   state,
+  levelRef,
 }: {
   view: View;
   onChange: (view: View) => void;
   status: SystemStatus;
   state: DictationState;
+  levelRef: React.RefObject<number>;
 }) {
   const busy = isBusy(state);
   const label =
@@ -49,9 +52,9 @@ export function TitleBar({
     >
       <span
         data-tauri-drag-region
-        className="display pointer-events-none flex items-center gap-2 text-[14.5px]"
+        className="display flex items-center gap-2 text-[14.5px]"
       >
-        <Wordmark />
+        <Wordmark levelRef={levelRef} live={state.kind === "capturing"} />
         clide
       </span>
 
@@ -90,21 +93,5 @@ export function TitleBar({
         <span className="text-[12.5px] text-ink-2">{label}</span>
       </div>
     </header>
-  );
-}
-
-/** The five-bar mark from the app icon, at chrome size. */
-function Wordmark() {
-  const heights = [38, 70, 100, 55, 32];
-  return (
-    <span aria-hidden className="flex h-[13px] items-end gap-[1.5px]">
-      {heights.map((height, index) => (
-        <span
-          key={index}
-          className="w-[2px] rounded-[1px] bg-voice"
-          style={{ height: `${height}%` }}
-        />
-      ))}
-    </span>
   );
 }

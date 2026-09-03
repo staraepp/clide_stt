@@ -70,6 +70,7 @@ export interface SystemStatus {
   providerName: string;
   modelName: string;
   providerConfigured: boolean;
+  providerNeedsKey: boolean;
   ready: boolean;
 }
 
@@ -256,4 +257,16 @@ export interface RefinerDescriptor {
   local: boolean;
   available: boolean;
   unavailableReason: string | null;
+}
+
+/** Who this build is, and where to go with it. */
+export interface About {
+  version: string;
+  commit: string;
+  buildDate: string;
+  repository: string;
+  website: string;
+  issues: string;
+  license: string;
+  tauriVersion: string;
 }

@@ -6,7 +6,9 @@
  * command breaks the build rather than a button.
  */
 import { invoke } from "@tauri-apps/api/core";
+import { openUrl as openExternal } from "@tauri-apps/plugin-opener";
 import type {
+  About,
   FallbackPolicy,
   RefineStyle,
   RefinerDescriptor,
@@ -138,3 +140,19 @@ export const listRefiners = () => invoke<RefinerDescriptor[]>("list_refiners");
 
 export const setRefineStyle = (style: RefineStyle) =>
   invoke<void>("set_refine_style", { style });
+
+export const getAbout = () => invoke<About>("get_about");
+
+/**
+ * Open a link in the user's browser.
+ *
+ * Never navigates the webview itself — clide's window is the app, and a page
+ * loading into it would replace the app with a website.
+ */
+export async function openUrl(url: string): Promise<void> {
+  try {
+    await openExternal(url);
+  } catch (error) {
+    console.error("could not open the link", error);
+  }
+}

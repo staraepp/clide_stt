@@ -11,11 +11,13 @@ import { useSystemStatus } from "./useSystemStatus";
 import { useDictationState } from "@/dictation/useDictationState";
 import { useMicLevel } from "@/dictation/useMicLevel";
 import { EVENTS, on } from "@/lib/events";
+import { useEasterEggs } from "./useEasterEggs";
 import { isBusy } from "@/lib/types";
 import { TitleBar, type View } from "./TitleBar";
 
 export function App() {
   const { status, refresh } = useSystemStatus();
+  const { surge } = useEasterEggs();
   const [view, setView] = useState<View>("dashboard");
   const state = useDictationState();
   const level = useMicLevel();
@@ -52,16 +54,22 @@ export function App() {
   return (
     <div className="relative h-full w-full overflow-hidden">
       <ShaderBackground
-        intensity={status.settings.visualIntensity}
+        intensity={surge ? "high" : status.settings.visualIntensity}
         // The wash gathers only while clide is handling speech — the same
         // "blue means voice" rule the rest of the palette follows.
-        active={isBusy(state)}
+        active={isBusy(state) || surge}
         // Only High reacts to the microphone; the shader ignores it otherwise.
         energy={state.kind === "capturing" ? (level.current ?? 0) : 0}
       />
 
       <div className="relative flex h-full flex-col">
-        <TitleBar view={view} onChange={setView} status={status} state={state} />
+        <TitleBar
+          view={view}
+          onChange={setView}
+          status={status}
+          state={state}
+          levelRef={level}
+        />
 
         <main className="scroll-area flex-1 px-3">
           <AnimatePresence mode="wait" initial={false}>
