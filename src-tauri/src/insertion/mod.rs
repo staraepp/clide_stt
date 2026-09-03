@@ -2,11 +2,11 @@
 //!
 //! Two strategies, tried in order:
 //!
-//! 1. **Accessibility** — write the text into the focused control directly.
-//!    Nothing is touched except the caret position, and the clipboard is left
-//!    completely alone.
-//! 2. **Clipboard paste** — put the text on the pasteboard, send Cmd+V, then
-//!    put the previous clipboard back.
+//! 1. **Clipboard** — every completed transcript is copied and remains there.
+//! 2. **Accessibility** — write into the control that was focused when
+//!    dictation began.
+//! 3. **Clipboard paste** — when a control refuses direct Accessibility writes
+//!    (common in web views), send Cmd+V directly to the captured app process.
 //!
 //! If both fail the transcript is *still* left on the clipboard, because a
 //! transcript that reached this point is a success that insertion must not be
@@ -28,11 +28,11 @@ pub struct InsertionFailure {
     pub on_clipboard: bool,
 }
 
-/// Insert `text` wherever the user is currently typing.
+/// Insert `text` into the application captured when dictation began.
 ///
-/// Blocking: it talks to the Accessibility API and sleeps while the target
-/// application services a paste. Call it from `spawn_blocking`.
-pub fn insert(text: &str) -> Result<InsertionMethod, InsertionFailure> {
+/// Blocking: it talks to the pasteboard and Accessibility APIs. Call it from
+/// `spawn_blocking`.
+pub fn insert(text: &str, target: &FocusTarget) -> Result<InsertionMethod, InsertionFailure> {
     if text.is_empty() {
         return Err(InsertionFailure {
             message: "There was nothing to insert.".into(),
@@ -40,43 +40,53 @@ pub fn insert(text: &str) -> Result<InsertionMethod, InsertionFailure> {
         });
     }
 
-    // Without Accessibility access neither strategy can work: direct writes
+    // Copy first and deliberately keep the transcript there. Besides matching
+    // the user's explicit preference, this is the recovery path if any form of
+    // insertion fails.
+    let on_clipboard = clipboard::set_text(text);
+    if !on_clipboard {
+        return Err(InsertionFailure {
+            message: "The transcript was ready, but the clipboard could not be written.".into(),
+            on_clipboard: false,
+        });
+    }
+
+    // Without Accessibility access neither insertion strategy can work: direct writes
     // are refused and synthetic keystrokes are discarded silently. Skip
     // straight to leaving the text somewhere the user can reach it.
     if !ax::is_process_trusted() {
-        let on_clipboard = clipboard::set_text(text);
         return Err(InsertionFailure {
             message: "clide needs Accessibility access to type into other apps.".into(),
             on_clipboard,
         });
     }
 
-    match insert_via_accessibility(text) {
+    match insert_via_accessibility(text, target) {
         Ok(()) => return Ok(InsertionMethod::Accessibility),
         Err(reason) => tracing::debug!(reason, "accessibility insertion declined; pasting"),
     }
 
-    match insert_via_paste(text) {
+    match insert_via_paste(text, target.pid) {
         Ok(()) => Ok(InsertionMethod::ClipboardPaste),
-        Err(reason) => {
-            // Last resort: the transcript stays on the clipboard and the UI
-            // offers Copy.
-            let on_clipboard = clipboard::set_text(text);
-            Err(InsertionFailure {
-                message: reason,
-                on_clipboard,
-            })
-        }
+        Err(reason) => Err(InsertionFailure {
+            message: reason,
+            on_clipboard,
+        }),
     }
 }
 
 /// Write into the focused control's selection, which is what "type at the
 /// caret" means in Accessibility terms.
-fn insert_via_accessibility(text: &str) -> Result<(), String> {
-    let system = ax::AXElement::system_wide()
-        .ok_or_else(|| "the Accessibility system element is unavailable".to_string())?;
+fn insert_via_accessibility(text: &str, target: &FocusTarget) -> Result<(), String> {
+    let root = match target.pid {
+        Some(pid) => ax::AXElement::application(pid).ok_or_else(|| {
+            "the target application's Accessibility element is unavailable".to_string()
+        })?,
+        None => ax::AXElement::system_wide()
+            .ok_or_else(|| "the Accessibility system element is unavailable".to_string())?,
+    };
 
-    let focused = system
+    let focused = root
         .element_attribute(ax::ATTR_FOCUSED_UI_ELEMENT)
         .ok_or_else(|| "nothing is focused to type into".to_string())?;
 
@@ -91,31 +101,16 @@ fn insert_via_accessibility(text: &str) -> Result<(), String> {
         .map_err(ax::describe)
 }
 
-/// Borrow the clipboard, paste, and give it back.
-///
-/// The pasteboard lock is held across the whole sequence so a Copy elsewhere
-/// in the app cannot land between the borrow and the restore and get undone.
-fn insert_via_paste(text: &str) -> Result<(), String> {
+/// Put the transcript on the clipboard and send a targeted paste. It stays on
+/// the clipboard afterward by design, so slow web views can consume it on
+/// their own schedule and the user can paste it manually if needed.
+fn insert_via_paste(text: &str, target_pid: Option<i32>) -> Result<(), String> {
     clipboard::access(|pasteboard| {
-        let previous = pasteboard.snapshot();
-
         if !pasteboard.set_text(text) {
             return Err("the clipboard could not be written".into());
         }
 
-        if let Err(error) = clipboard::send_paste_keystroke() {
-            // Put the clipboard back before reporting: the user should not
-            // lose what they had copied because our keystroke failed.
-            pasteboard.restore(previous);
-            return Err(error);
-        }
-
-        // Give the target application time to read the pasteboard before the
-        // original contents go back.
-        std::thread::sleep(clipboard::PASTE_SETTLE);
-        pasteboard.restore(previous);
-
-        Ok(())
+        clipboard::send_paste_keystroke(target_pid)
     })
 }
 
@@ -125,7 +120,7 @@ mod tests {
 
     #[test]
     fn empty_text_is_refused_rather_than_pasted() {
-        let failure = insert("").unwrap_err();
+        let failure = insert("", &FocusTarget::default()).unwrap_err();
         assert!(!failure.on_clipboard);
     }
 
@@ -138,7 +133,7 @@ mod tests {
     #[ignore = "types into the focused application; run manually"]
     fn insertion_reaches_the_focused_app() {
         let target = focus::frontmost();
-        let method = insert("Clide insertion test.").expect("insertion failed");
+        let method = insert("Clide insertion test.", &target).expect("insertion failed");
         eprintln!("inserted into {} via {:?}", target.label(), method);
     }
 }

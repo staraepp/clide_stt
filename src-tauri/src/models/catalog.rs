@@ -105,11 +105,92 @@ pub fn catalog() -> Vec<CatalogEntry> {
     vec![
         // --- Whisper, smallest first -------------------------------------
         whisper(
+            "whisper-tiny-q5",
+            "Whisper Tiny Q5",
+            "The smallest multilingual download. Best for quick, clear notes.",
+            "ggml-tiny-q5_1.bin",
+            32_152_673,
+            SpeedClass::Fast,
+            QualityClass::Good,
+        ),
+        whisper_en(
+            "whisper-tiny-en-q5",
+            "Whisper Tiny English Q5",
+            "The smallest English-only option for near-instant dictation.",
+            "ggml-tiny.en-q5_1.bin",
+            32_166_155,
+            SpeedClass::Fast,
+            QualityClass::Good,
+        ),
+        whisper(
+            "whisper-tiny-q8",
+            "Whisper Tiny Q8",
+            "A compact multilingual Tiny build with lighter quantisation.",
+            "ggml-tiny-q8_0.bin",
+            43_537_433,
+            SpeedClass::Fast,
+            QualityClass::Good,
+        ),
+        whisper_en(
+            "whisper-tiny-en-q8",
+            "Whisper Tiny English Q8",
+            "A compact English-only Tiny build with lighter quantisation.",
+            "ggml-tiny.en-q8_0.bin",
+            43_550_795,
+            SpeedClass::Fast,
+            QualityClass::Good,
+        ),
+        whisper(
+            "whisper-base-q5",
+            "Whisper Base Q5",
+            "A small multilingual Base build with a low storage footprint.",
+            "ggml-base-q5_1.bin",
+            59_707_625,
+            SpeedClass::Fast,
+            QualityClass::Good,
+        ),
+        whisper_en(
+            "whisper-base-en-q5",
+            "Whisper Base English Q5",
+            "A small English-only Base build for fast everyday dictation.",
+            "ggml-base.en-q5_1.bin",
+            59_721_011,
+            SpeedClass::Fast,
+            QualityClass::Good,
+        ),
+        whisper(
             "whisper-tiny",
             "Whisper Tiny",
             "Tiny and instant. Fine for short, clear notes.",
             "ggml-tiny.bin",
             77_691_713,
+            SpeedClass::Fast,
+            QualityClass::Good,
+        ),
+        whisper_en(
+            "whisper-tiny-en",
+            "Whisper Tiny English",
+            "The full Tiny model tuned for English-only speech.",
+            "ggml-tiny.en.bin",
+            77_704_715,
+            SpeedClass::Fast,
+            QualityClass::Good,
+        ),
+        whisper(
+            "whisper-base-q8",
+            "Whisper Base Q8",
+            "A compact multilingual Base build with lighter quantisation.",
+            "ggml-base-q8_0.bin",
+            81_768_585,
+            SpeedClass::Fast,
+            QualityClass::Good,
+        ),
+        whisper_en(
+            "whisper-base-en-q8",
+            "Whisper Base English Q8",
+            "A compact English-only Base build with lighter quantisation.",
+            "ggml-base.en-q8_0.bin",
+            81_781_811,
             SpeedClass::Fast,
             QualityClass::Good,
         ),
@@ -122,12 +203,48 @@ pub fn catalog() -> Vec<CatalogEntry> {
             SpeedClass::Fast,
             QualityClass::Good,
         ),
+        whisper_en(
+            "whisper-base-en",
+            "Whisper Base English",
+            "The full Base model tuned for English-only speech.",
+            "ggml-base.en.bin",
+            147_964_211,
+            SpeedClass::Fast,
+            QualityClass::Good,
+        ),
         whisper(
             "whisper-small-q5",
-            "Whisper Small (compressed)",
-            "Small's accuracy at a third of the size. A good first download.",
+            "Whisper Small Q5",
+            "A compressed multilingual Small build. A good first download.",
             "ggml-small-q5_1.bin",
             190_085_487,
+            SpeedClass::Fast,
+            QualityClass::High,
+        ),
+        whisper_en(
+            "whisper-small-en-q5",
+            "Whisper Small English Q5",
+            "A compressed English-only Small build with strong accuracy.",
+            "ggml-small.en-q5_1.bin",
+            190_098_681,
+            SpeedClass::Fast,
+            QualityClass::High,
+        ),
+        whisper(
+            "whisper-small-q8",
+            "Whisper Small Q8",
+            "Small with lighter quantisation for more detail at a modest size.",
+            "ggml-small-q8_0.bin",
+            264_464_607,
+            SpeedClass::Fast,
+            QualityClass::High,
+        ),
+        whisper_en(
+            "whisper-small-en-q8",
+            "Whisper Small English Q8",
+            "English-only Small with lighter quantisation and strong accuracy.",
+            "ggml-small.en-q8_0.bin",
+            264_477_561,
             SpeedClass::Fast,
             QualityClass::High,
         ),
@@ -140,39 +257,102 @@ pub fn catalog() -> Vec<CatalogEntry> {
             SpeedClass::Fast,
             QualityClass::High,
         ),
+        whisper_en(
+            "whisper-small-en",
+            "Whisper Small English",
+            "The full Small model tuned for accurate English dictation.",
+            "ggml-small.en.bin",
+            487_614_201,
+            SpeedClass::Fast,
+            QualityClass::High,
+        ),
         whisper(
             "whisper-medium-q5",
-            "Whisper Medium (compressed)",
-            "Medium's accuracy in a third of the space.",
+            "Whisper Medium Q5",
+            "A compressed multilingual Medium build for accurate dictation.",
             "ggml-medium-q5_0.bin",
             539_212_467,
             SpeedClass::Balanced,
             QualityClass::High,
         ),
+        whisper_en(
+            "whisper-medium-en-q5",
+            "Whisper Medium English Q5",
+            "A compressed English-only Medium build for accurate dictation.",
+            "ggml-medium.en-q5_0.bin",
+            539_225_533,
+            SpeedClass::Balanced,
+            QualityClass::High,
+        ),
         whisper(
             "whisper-large-v3-turbo-q5",
-            "Whisper Large v3 Turbo (compressed)",
-            "The best trade in the catalogue: Turbo's accuracy at a third the size.",
+            "Whisper Large v3 Turbo Q5",
+            "The smallest Turbo build and a strong speed-to-quality tradeoff.",
             "ggml-large-v3-turbo-q5_0.bin",
             574_041_195,
             SpeedClass::Fast,
             QualityClass::VeryHigh,
         ),
         whisper(
+            "whisper-medium-q8",
+            "Whisper Medium Q8",
+            "Medium with lighter quantisation for more detail than Q5.",
+            "ggml-medium-q8_0.bin",
+            823_369_779,
+            SpeedClass::Balanced,
+            QualityClass::High,
+        ),
+        whisper_en(
+            "whisper-medium-en-q8",
+            "Whisper Medium English Q8",
+            "English-only Medium with lighter quantisation than Q5.",
+            "ggml-medium.en-q8_0.bin",
+            823_382_461,
+            SpeedClass::Balanced,
+            QualityClass::High,
+        ),
+        whisper(
+            "whisper-large-v3-turbo-q8",
+            "Whisper Large v3 Turbo Q8",
+            "Turbo with lighter quantisation for a quality-focused compact build.",
+            "ggml-large-v3-turbo-q8_0.bin",
+            874_188_075,
+            SpeedClass::Balanced,
+            QualityClass::VeryHigh,
+        ),
+        whisper(
             "whisper-large-v3-q5",
-            "Whisper Large v3 (compressed)",
-            "Full Large v3 accuracy, compressed. Slower than Turbo.",
+            "Whisper Large v3 Q5",
+            "A compressed Large v3 build. Slower and more thorough than Turbo.",
             "ggml-large-v3-q5_0.bin",
             1_081_140_203,
             SpeedClass::Thorough,
             QualityClass::VeryHigh,
         ),
         whisper(
+            "whisper-large-v2-q5",
+            "Whisper Large v2 Q5",
+            "A compressed legacy Large v2 build for comparison and compatibility.",
+            "ggml-large-v2-q5_0.bin",
+            1_080_732_091,
+            SpeedClass::Thorough,
+            QualityClass::VeryHigh,
+        ),
+        whisper(
             "whisper-medium",
             "Whisper Medium",
-            "Uncompressed Medium. Prefer the compressed build unless comparing.",
+            "The full multilingual Medium model.",
             "ggml-medium.bin",
             1_533_763_059,
+            SpeedClass::Balanced,
+            QualityClass::High,
+        ),
+        whisper_en(
+            "whisper-medium-en",
+            "Whisper Medium English",
+            "The full Medium model tuned for English-only speech.",
+            "ggml-medium.en.bin",
+            1_533_774_781,
             SpeedClass::Balanced,
             QualityClass::High,
         ),
@@ -183,6 +363,42 @@ pub fn catalog() -> Vec<CatalogEntry> {
             "ggml-large-v3-turbo.bin",
             1_624_555_275,
             SpeedClass::Balanced,
+            QualityClass::VeryHigh,
+        ),
+        whisper(
+            "whisper-large-v2-q8",
+            "Whisper Large v2 Q8",
+            "A lightly quantised legacy Large v2 build for compatibility testing.",
+            "ggml-large-v2-q8_0.bin",
+            1_656_129_691,
+            SpeedClass::Thorough,
+            QualityClass::VeryHigh,
+        ),
+        whisper(
+            "whisper-large-v1",
+            "Whisper Large v1",
+            "The original full Large model, retained for legacy comparisons.",
+            "ggml-large-v1.bin",
+            3_094_623_691,
+            SpeedClass::Thorough,
+            QualityClass::High,
+        ),
+        whisper(
+            "whisper-large-v2",
+            "Whisper Large v2",
+            "The full legacy Large v2 model for compatibility and comparison.",
+            "ggml-large-v2.bin",
+            3_094_623_691,
+            SpeedClass::Thorough,
+            QualityClass::VeryHigh,
+        ),
+        whisper(
+            "whisper-large-v3",
+            "Whisper Large v3",
+            "The full multilingual Large v3 model. Highest fidelity, largest download.",
+            "ggml-large-v3.bin",
+            3_095_033_483,
+            SpeedClass::Thorough,
             QualityClass::VeryHigh,
         ),
         // --- Parakeet -----------------------------------------------------
@@ -246,6 +462,52 @@ fn whisper(
     speed: SpeedClass,
     quality: QualityClass,
 ) -> CatalogEntry {
+    whisper_entry(
+        id,
+        name,
+        description,
+        file_name,
+        bytes,
+        speed,
+        quality,
+        true,
+    )
+}
+
+/// English-only GGML weights. These trade automatic language support for a
+/// model tuned specifically for English speech.
+fn whisper_en(
+    id: &str,
+    name: &str,
+    description: &str,
+    file_name: &str,
+    bytes: u64,
+    speed: SpeedClass,
+    quality: QualityClass,
+) -> CatalogEntry {
+    whisper_entry(
+        id,
+        name,
+        description,
+        file_name,
+        bytes,
+        speed,
+        quality,
+        false,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn whisper_entry(
+    id: &str,
+    name: &str,
+    description: &str,
+    file_name: &str,
+    bytes: u64,
+    speed: SpeedClass,
+    quality: QualityClass,
+    multilingual: bool,
+) -> CatalogEntry {
     CatalogEntry {
         id: id.into(),
         name: name.into(),
@@ -254,12 +516,10 @@ fn whisper(
         description: description.into(),
         speed,
         quality,
-        multilingual: true,
+        multilingual,
         files: vec![ModelFile {
             name: file_name.into(),
-            url: format!(
-                "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/{file_name}"
-            ),
+            url: format!("https://huggingface.co/ggerganov/whisper.cpp/resolve/main/{file_name}"),
             bytes,
             sha256: None,
         }],
@@ -304,6 +564,50 @@ mod tests {
     fn every_entry_has_a_unique_id() {
         let ids: HashSet<_> = catalog().into_iter().map(|e| e.id).collect();
         assert_eq!(ids.len(), catalog().len());
+    }
+
+    #[test]
+    fn the_catalogue_includes_the_complete_canonical_ggml_family() {
+        let whisper_entries: Vec<_> = catalog()
+            .into_iter()
+            .filter(|entry| entry.engine == Engine::Whisper)
+            .collect();
+        assert_eq!(whisper_entries.len(), 33);
+
+        let files: HashSet<_> = whisper_entries
+            .iter()
+            .flat_map(|entry| entry.files.iter().map(|file| file.name.as_str()))
+            .collect();
+        for expected in [
+            "ggml-tiny.en-q5_1.bin",
+            "ggml-base-q8_0.bin",
+            "ggml-small.en.bin",
+            "ggml-medium.en-q8_0.bin",
+            "ggml-large-v1.bin",
+            "ggml-large-v2-q5_0.bin",
+            "ggml-large-v3.bin",
+            "ggml-large-v3-turbo-q8_0.bin",
+        ] {
+            assert!(
+                files.contains(expected),
+                "missing canonical model {expected}"
+            );
+        }
+    }
+
+    #[test]
+    fn english_only_weights_do_not_claim_multilingual_support() {
+        for entry in catalog()
+            .into_iter()
+            .filter(|entry| entry.engine == Engine::Whisper)
+        {
+            let english_only = entry.files[0].name.contains(".en");
+            assert_eq!(
+                entry.multilingual, !english_only,
+                "{} has the wrong language capability",
+                entry.id
+            );
+        }
     }
 
     #[test]
@@ -374,7 +678,11 @@ mod tests {
         assert!(names.contains(&"model.onnx_data"));
         assert!(names.contains(&"tokenizer.json"));
 
-        let weights = ctc.files.iter().find(|f| f.name == "model.onnx_data").unwrap();
+        let weights = ctc
+            .files
+            .iter()
+            .find(|f| f.name == "model.onnx_data")
+            .unwrap();
         assert!(weights.url.contains("model_int8.onnx_data"));
     }
 
@@ -384,7 +692,10 @@ mod tests {
         let smallest = *sizes.iter().min().unwrap();
         let largest = *sizes.iter().max().unwrap();
         assert!(smallest < 100 * 1024 * 1024, "nothing small enough to try");
-        assert!(largest > 1024 * 1024 * 1024, "nothing accurate enough to keep");
+        assert!(
+            largest > 1024 * 1024 * 1024,
+            "nothing accurate enough to keep"
+        );
     }
 
     #[test]
@@ -401,7 +712,10 @@ mod tests {
     fn sizes_read_as_something_a_person_can_judge() {
         let entry = find("whisper-base").unwrap();
         assert_eq!(entry.size_label(), "141 MB");
-        assert_eq!(find("whisper-large-v3-turbo").unwrap().size_label(), "1.5 GB");
+        assert_eq!(
+            find("whisper-large-v3-turbo").unwrap().size_label(),
+            "1.5 GB"
+        );
     }
 
     #[test]

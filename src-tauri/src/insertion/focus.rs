@@ -19,6 +19,11 @@ pub struct FocusTarget {
     /// Display name, e.g. "TextEdit". Stored as `source_app` in history.
     pub app_name: Option<String>,
     pub bundle_id: Option<String>,
+    /// Process that owned focus when dictation began. Kept internal so the
+    /// eventual paste can be delivered to the original app even if another
+    /// Clide window briefly becomes active while transcription is running.
+    #[serde(skip)]
+    pub pid: Option<i32>,
 }
 
 impl FocusTarget {
@@ -54,10 +59,12 @@ pub fn frontmost() -> FocusTarget {
 
         let name: *mut AnyObject = msg_send![app, localizedName];
         let bundle: *mut AnyObject = msg_send![app, bundleIdentifier];
+        let pid: i32 = msg_send![app, processIdentifier];
 
         FocusTarget {
             app_name: ns_string_to_rust(name),
             bundle_id: ns_string_to_rust(bundle),
+            pid: (pid > 0).then_some(pid),
         }
     })
 }

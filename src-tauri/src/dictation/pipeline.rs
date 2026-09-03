@@ -20,8 +20,8 @@ use crate::dictation::machine::{DictationInput, DictationState, FailureStage};
 use crate::hud;
 use crate::insertion;
 use crate::processing;
-use crate::refine::{RefineRequest, RefineStyle};
 use crate::providers::{AudioClip, TranscriptionRequest};
+use crate::refine::{RefineRequest, RefineStyle};
 use crate::state::AppState;
 
 /// How often the HUD waveform is refreshed. 30 Hz is smooth to the eye and
@@ -78,10 +78,9 @@ pub async fn stop(app: &AppHandle) {
     events::emit_bare(app, events::DICTATION_STOPPED);
 
     let recorder = app.clone();
-    let recorded = tauri::async_runtime::spawn_blocking(move || {
-        recorder.state::<AppState>().recorder.stop()
-    })
-    .await;
+    let recorded =
+        tauri::async_runtime::spawn_blocking(move || recorder.state::<AppState>().recorder.stop())
+            .await;
 
     let clip = match recorded {
         Ok(Ok(clip)) => clip,
@@ -94,7 +93,11 @@ pub async fn stop(app: &AppHandle) {
         Err(error) => {
             tracing::error!(?error, "audio worker panicked");
             state.session.release_audio();
-            fail(app, FailureStage::Capture, "The recording could not be saved.");
+            fail(
+                app,
+                FailureStage::Capture,
+                "The recording could not be saved.",
+            );
             return;
         }
     };
@@ -188,7 +191,11 @@ async fn try_fallback(
     );
 
     for candidate in candidates {
-        let credential = state.credentials.read(candidate.provider.id()).ok().flatten();
+        let credential = state
+            .credentials
+            .read(candidate.provider.id())
+            .ok()
+            .flatten();
 
         let mut attempt = request.clone();
         attempt.model = candidate.model.clone();
@@ -235,7 +242,11 @@ async fn transcribe(app: &AppHandle) -> Option<String> {
     events::emit_bare(app, events::TRANSCRIPTION_STARTED);
 
     let Some(pending) = state.session.pending_snapshot() else {
-        fail(app, FailureStage::Transcription, "The recording is no longer available.");
+        fail(
+            app,
+            FailureStage::Transcription,
+            "The recording is no longer available.",
+        );
         return None;
     };
 
@@ -275,7 +286,9 @@ async fn transcribe(app: &AppHandle) -> Option<String> {
         prompt: None,
     };
 
-    let first_attempt = provider.transcribe(request.clone(), credential.as_deref()).await;
+    let first_attempt = provider
+        .transcribe(request.clone(), credential.as_deref())
+        .await;
 
     // Only reach for a substitute once the chosen engine has actually failed,
     // and never silently: whatever runs is named in the HUD. See
@@ -283,12 +296,10 @@ async fn transcribe(app: &AppHandle) -> Option<String> {
     // cloud ones are not.
     let outcome = match first_attempt {
         Ok(result) => Ok(result),
-        Err(original) => {
-            match try_fallback(app, &state, policy, &provider_id, &request).await {
-                Some(result) => Ok(result),
-                None => Err(original),
-            }
-        }
+        Err(original) => match try_fallback(app, &state, policy, &provider_id, &request).await {
+            Some(result) => Ok(result),
+            None => Err(original),
+        },
     };
 
     match outcome {
@@ -452,8 +463,9 @@ async fn deliver(app: &AppHandle, text: String) {
     events::emit_bare(app, events::INSERTION_STARTED);
 
     let payload = text.clone();
+    let target = state.session.target();
     let outcome =
-        tauri::async_runtime::spawn_blocking(move || insertion::insert(&payload)).await;
+        tauri::async_runtime::spawn_blocking(move || insertion::insert(&payload, &target)).await;
 
     // The transcript is delivered (or on the clipboard); the audio has done
     // its job either way.
@@ -518,13 +530,13 @@ fn fail(app: &AppHandle, stage: FailureStage, message: impl Into<String>) {
 
 fn capture_message(error: &AudioError) -> String {
     match error {
-        AudioError::NoInputDevice => {
-            "No microphone was found. Connect one and try again.".into()
-        }
+        AudioError::NoInputDevice => "No microphone was found. Connect one and try again.".into(),
         AudioError::PermissionDenied => {
             "clide needs microphone access. Enable it in System Settings.".into()
         }
-        AudioError::Empty => "Nothing was recorded — check that the right microphone is selected.".into(),
+        AudioError::Empty => {
+            "Nothing was recorded — check that the right microphone is selected.".into()
+        }
         other => other.to_string(),
     }
 }

@@ -51,7 +51,7 @@ time = { version = "0.3", features = ["formatting", "parsing", "macros"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 core-foundation = "0.10"
-core-graphics = "0.24"
+core-graphics = { version = "0.24", features = ["elcapitan"] }
 objc2 = "0.6"
 block2 = "0.6"
 

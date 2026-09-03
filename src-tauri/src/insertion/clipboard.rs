@@ -1,9 +1,8 @@
 //! Clipboard access and the synthetic paste used as the insertion fallback.
 //!
-//! Clide borrows the user's clipboard for a few hundred milliseconds and puts
-//! it back. The snapshot preserves every representation on the pasteboard —
-//! not just text — so pasting a dictated sentence does not quietly destroy an
-//! image or a file reference someone had copied.
+//! Every completed transcript is copied to the clipboard and left there. This
+//! gives the user a reliable recovery path and prevents a slow target app from
+//! missing a paste because Clide restored the previous contents too early.
 //!
 //! **All pasteboard access is serialised.** `NSPasteboard` maintains an
 //! internal type cache that is not thread-safe: concurrent `types` calls
@@ -27,11 +26,6 @@ use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
 /// Virtual key codes (Carbon `kVK_*`), stable across keyboard layouts.
 const KEY_V: u16 = 0x09;
 const KEY_COMMAND: u16 = 0x37;
-
-/// How long the target application gets to service the paste before the
-/// original clipboard is put back. Generous enough for Electron apps, short
-/// enough that the user never notices the borrow.
-pub const PASTE_SETTLE: std::time::Duration = std::time::Duration::from_millis(280);
 
 static PASTEBOARD: Mutex<()> = Mutex::new(());
 
@@ -204,12 +198,12 @@ pub fn text() -> Option<String> {
     access(|pasteboard| pasteboard.text())
 }
 
-/// Send Cmd+V to whatever is focused.
+/// Send Cmd+V to the app that owned focus when dictation began.
 ///
 /// The Command key is pressed and released as real key events rather than only
 /// setting the modifier flag: some applications watch for the physical
 /// modifier and ignore a bare flagged keystroke.
-pub fn send_paste_keystroke() -> Result<(), String> {
+pub fn send_paste_keystroke(target_pid: Option<i32>) -> Result<(), String> {
     let source = CGEventSource::new(CGEventSourceStateID::CombinedSessionState)
         .map_err(|_| "could not create a keyboard event source".to_string())?;
 
@@ -224,7 +218,10 @@ pub fn send_paste_keystroke() -> Result<(), String> {
         let event = CGEvent::new_keyboard_event(source.clone(), key, down)
             .map_err(|_| "could not create the paste keystroke".to_string())?;
         event.set_flags(flags);
-        event.post(CGEventTapLocation::HID);
+        match target_pid {
+            Some(pid) => event.post_to_pid(pid),
+            None => event.post(CGEventTapLocation::HID),
+        }
     }
 
     Ok(())

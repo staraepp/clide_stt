@@ -33,6 +33,7 @@ extern "C" {
     fn AXIsProcessTrusted() -> u8;
     fn AXIsProcessTrustedWithOptions(options: CFTypeRef) -> u8;
     fn AXUIElementCreateSystemWide() -> AXUIElementRef;
+    fn AXUIElementCreateApplication(pid: i32) -> AXUIElementRef;
     fn AXUIElementCopyAttributeValue(
         element: AXUIElementRef,
         attribute: CFStringRef,
@@ -124,6 +125,14 @@ impl AXElement {
         (!element.is_null()).then_some(Self(element))
     }
 
+    /// The Accessibility root for one application. This lets insertion use
+    /// the app that owned focus when dictation started rather than whichever
+    /// process happens to be frontmost after transcription finishes.
+    pub fn application(pid: i32) -> Option<Self> {
+        let element = unsafe { AXUIElementCreateApplication(pid) };
+        (!element.is_null()).then_some(Self(element))
+    }
+
     /// Read an attribute that is itself an element (focused control, focused app).
     pub fn element_attribute(&self, attribute: &str) -> Option<Self> {
         let value = self.copy_attribute(attribute)?;
@@ -171,11 +180,7 @@ impl AXElement {
         let name = CFString::new(attribute);
         let text = CFString::new(value);
         let status = unsafe {
-            AXUIElementSetAttributeValue(
-                self.0,
-                name.as_concrete_TypeRef(),
-                text.as_CFTypeRef(),
-            )
+            AXUIElementSetAttributeValue(self.0, name.as_concrete_TypeRef(), text.as_CFTypeRef())
         };
         if status == kAXErrorSuccess {
             Ok(())

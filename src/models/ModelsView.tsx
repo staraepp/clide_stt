@@ -23,6 +23,7 @@ export function ModelsView() {
   const [progress, setProgress] = useState<Record<string, DownloadProgress>>({});
   const [failures, setFailures] = useState<Record<string, string>>({});
   const [activeProvider, setActiveProvider] = useState<string | null>(null);
+  const [languageFilter, setLanguageFilter] = useState<LanguageFilter>("all");
 
   const refresh = useCallback(async () => {
     try {
@@ -71,6 +72,14 @@ export function ModelsView() {
   const provider =
     page.providers.find((candidate) => candidate.id === activeProvider) ??
     page.providers[0];
+  const localModels = provider.capabilities.local
+    ? page.models.filter((model) => model.engine === engineOf(provider.id))
+    : [];
+  const visibleLocalModels = localModels.filter((model) => {
+    if (languageFilter === "multilingual") return model.multilingual;
+    if (languageFilter === "english") return !model.multilingual;
+    return true;
+  });
 
   return (
     <div className="flex flex-col gap-3 py-3">
@@ -93,12 +102,17 @@ export function ModelsView() {
       </section>
 
       <section className="flex flex-col gap-2">
-        <div className="flex items-baseline gap-2 px-1">
+        <div className="flex flex-wrap items-center gap-2 px-1">
           <h2 className="label">{provider.name} models</h2>
           {provider.capabilities.local && (
-            <span className="text-[11.5px] text-ink-3">
-              Ranked for your {page.hardware.chip}
-            </span>
+            <>
+              <span className="text-[11.5px] text-ink-3">
+                {localModels.length} available · ranked for your {page.hardware.chip}
+              </span>
+              {provider.id === "local-whisper" && (
+                <LanguageFilters value={languageFilter} onChange={setLanguageFilter} />
+              )}
+            </>
           )}
         </div>
 
@@ -114,9 +128,7 @@ export function ModelsView() {
             )}
           >
             {provider.capabilities.local
-              ? page.models
-                  .filter((model) => model.engine === engineOf(provider.id))
-                  .map((model, index) => (
+              ? visibleLocalModels.map((model, index) => (
                     <div key={model.id} className="flex flex-col gap-1">
                       <ModelCard
                         model={model}
@@ -168,14 +180,49 @@ export function ModelsView() {
           </motion.div>
         </AnimatePresence>
 
-        {provider.capabilities.local &&
-          page.models.filter((model) => model.engine === engineOf(provider.id))
-            .length === 0 && (
+        {provider.capabilities.local && visibleLocalModels.length === 0 && (
             <p className="px-1 py-6 text-[13px] text-ink-3">
-              No models for this engine yet.
+              No models match this filter.
             </p>
           )}
       </section>
+    </div>
+  );
+}
+
+type LanguageFilter = "all" | "multilingual" | "english";
+
+function LanguageFilters({
+  value,
+  onChange,
+}: {
+  value: LanguageFilter;
+  onChange: (filter: LanguageFilter) => void;
+}) {
+  const options: Array<{ value: LanguageFilter; label: string }> = [
+    { value: "all", label: "All" },
+    { value: "multilingual", label: "Multilingual" },
+    { value: "english", label: "English only" },
+  ];
+
+  return (
+    <div className="ml-auto inline-flex rounded-lg border border-line bg-sunken p-0.5">
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          onClick={() => onChange(option.value)}
+          aria-pressed={value === option.value}
+          className={cn(
+            "rounded-md px-2 py-1 text-[11px] transition-colors",
+            value === option.value
+              ? "bg-ink text-card"
+              : "text-ink-3 hover:text-ink",
+          )}
+        >
+          {option.label}
+        </button>
+      ))}
     </div>
   );
 }

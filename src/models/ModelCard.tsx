@@ -74,6 +74,10 @@ export function ModelCard({
           <Cpu size={10} />
           {model.engine === "whisper" ? "whisper.cpp" : "ONNX"}
         </span>
+        <span className="text-[11px] text-ink-3">·</span>
+        <span className="text-[11px] text-ink-3">
+          {model.multilingual ? "Multilingual" : "English only"}
+        </span>
 
         <div className="ml-auto flex items-center gap-2">
           {downloading ? (
