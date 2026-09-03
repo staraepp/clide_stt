@@ -159,3 +159,69 @@ export function transcriptOf(state: DictationState): string | null {
       return null;
   }
 }
+
+/* --- Models page ---------------------------------------------------------- */
+
+export type Fit = "great" | "good" | "tight" | "tooLarge";
+
+/** Derived from this Mac's measured hardware and the model's declared class. */
+export interface Rating {
+  accuracy: number;
+  speed: number;
+  overall: number;
+  fit: Fit;
+  requiredMemoryBytes: number;
+}
+
+export interface ModelFile {
+  name: string;
+  url: string;
+  bytes: number;
+  sha256: string | null;
+}
+
+export interface ModelStatus {
+  id: string;
+  name: string;
+  engine: "whisper" | "parakeet";
+  description: string;
+  speed: ModelInfo["speed"];
+  quality: ModelInfo["quality"];
+  multilingual: boolean;
+  files: ModelFile[];
+  installed: boolean;
+  bytesOnDisk: number;
+  downloadBytes: number;
+  sizeLabel: string;
+  rating: Rating;
+}
+
+export interface Hardware {
+  chip: string;
+  totalMemoryBytes: number;
+  performanceCores: number;
+  appleSilicon: boolean;
+}
+
+export interface ModelsPage {
+  models: ModelStatus[];
+  providers: ProviderDescriptor[];
+  hardware: Hardware;
+  memoryLabel: string;
+  selectedProvider: string;
+  selectedModel: string;
+}
+
+export interface DownloadProgress {
+  modelId: string;
+  receivedBytes: number;
+  totalBytes: number;
+  fraction: number;
+}
+
+export const FIT_LABEL: Record<Fit, string> = {
+  great: "Runs great here",
+  good: "Runs well here",
+  tight: "Will be slow here",
+  tooLarge: "Not enough memory",
+};

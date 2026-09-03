@@ -7,6 +7,7 @@
  */
 import { invoke } from "@tauri-apps/api/core";
 import type {
+  ModelsPage,
   AppSettings,
   DictationBehavior,
   DictationState,
@@ -108,3 +109,18 @@ export function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   return "Something went wrong.";
 }
+
+/* --- Models --------------------------------------------------------------- */
+
+/** Providers, models, and this Mac's hardware in one round trip. */
+export const getModelsPage = () => invoke<ModelsPage>("get_models_page");
+
+/**
+ * Start a download. Returns as soon as it is under way — progress arrives as
+ * `model:progress` and settles on `model:complete` or `model:failed`.
+ */
+export const downloadModel = (modelId: string) =>
+  invoke<void>("download_model", { modelId });
+
+export const removeModel = (modelId: string) =>
+  invoke<void>("remove_model", { modelId });

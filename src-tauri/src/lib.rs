@@ -79,6 +79,7 @@ pub fn run() {
             commands::history::get_history,
             commands::history::search_history,
             commands::models::list_models,
+            commands::models::get_models_page,
             commands::models::download_model,
             commands::models::remove_model,
             commands::history::delete_transcript,

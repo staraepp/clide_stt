@@ -5,7 +5,8 @@
  * lifecycle events exist for anything that needs a specific moment.
  */
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import type { DictationState } from "./types";
+import type {
+  DownloadProgress, DictationState } from "./types";
 
 export const EVENTS = {
   dictationState: "dictation:state",
@@ -23,6 +24,9 @@ export const EVENTS = {
   historyChanged: "history:changed",
   settingsChanged: "settings:changed",
   navigate: "navigate",
+  modelProgress: "model:progress",
+  modelComplete: "model:complete",
+  modelFailed: "model:failed",
 } as const;
 
 export interface LevelPayload {
@@ -58,6 +62,10 @@ interface EventMap {
   [EVENTS.historyChanged]: null;
   [EVENTS.settingsChanged]: null;
   [EVENTS.navigate]: string;
+  [EVENTS.modelProgress]: DownloadProgress;
+  /** The model id that finished. */
+  [EVENTS.modelComplete]: string;
+  [EVENTS.modelFailed]: { modelId: string; message: string };
 }
 
 export function on<K extends keyof EventMap>(

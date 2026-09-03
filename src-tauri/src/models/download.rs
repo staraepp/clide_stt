@@ -10,7 +10,7 @@ use futures_util::StreamExt;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 
-use super::catalog::CatalogEntry;
+use super::catalog::{CatalogEntry, ModelFile};
 use super::store::ModelStore;
 
 pub const EVENT_PROGRESS: &str = "model:progress";
@@ -66,8 +66,38 @@ pub async fn download(
         .prepare_directory(entry)
         .map_err(|e| DownloadError::Disk(e.to_string()))?;
 
+    let total = entry.download_bytes();
+    // Files already on disk count toward progress, so resuming after a failed
+    // multi-file download does not restart the bar at zero.
+    let mut completed: u64 = 0;
+
+    for file in &entry.files {
+        if store.has_file(entry, file) {
+            completed += file.bytes;
+            emit_progress(app, entry, completed, total);
+            continue;
+        }
+
+        completed += fetch_file(app, store, entry, file, http, completed, total).await?;
+    }
+
+    emit_progress(app, entry, total, total);
+    let _ = app.emit(EVENT_COMPLETE, entry.id.clone());
+    Ok(())
+}
+
+/// Fetch one artifact, returning how many bytes it contributed.
+async fn fetch_file(
+    app: &AppHandle,
+    store: &ModelStore,
+    entry: &CatalogEntry,
+    file: &ModelFile,
+    http: &reqwest::Client,
+    already_done: u64,
+    total: u64,
+) -> Result<u64, DownloadError> {
     let response = http
-        .get(&entry.url)
+        .get(&file.url)
         .send()
         .await
         .map_err(|e| DownloadError::Network(e.to_string()))?;
@@ -76,13 +106,11 @@ pub async fn download(
         return Err(DownloadError::Status(response.status().as_u16()));
     }
 
-    let total = response.content_length().unwrap_or(entry.download_bytes);
-    let partial = store.partial_path_for(entry);
-
-    let mut file =
+    let partial = store.partial_path(entry, file);
+    let mut handle =
         std::fs::File::create(&partial).map_err(|e| DownloadError::Disk(e.to_string()))?;
 
-    let mut hasher = entry.sha256.as_ref().map(|_| Sha256Writer::new());
+    let mut hasher = file.sha256.as_ref().map(|_| Sha256Writer::new());
     let mut received: u64 = 0;
     let mut last_emit: u64 = 0;
     let mut stream = response.bytes_stream();
@@ -90,7 +118,8 @@ pub async fn download(
     while let Some(chunk) = stream.next().await {
         let chunk = chunk.map_err(|e| DownloadError::Network(e.to_string()))?;
 
-        file.write_all(&chunk)
+        handle
+            .write_all(&chunk)
             .map_err(|e| DownloadError::Disk(e.to_string()))?;
         if let Some(hasher) = hasher.as_mut() {
             hasher.update(&chunk);
@@ -100,27 +129,27 @@ pub async fn download(
 
         if received - last_emit >= PROGRESS_INTERVAL_BYTES {
             last_emit = received;
-            emit_progress(app, entry, received, total);
+            emit_progress(app, entry, already_done + received, total);
         }
     }
 
-    file.flush().map_err(|e| DownloadError::Disk(e.to_string()))?;
-    drop(file);
+    handle
+        .flush()
+        .map_err(|e| DownloadError::Disk(e.to_string()))?;
+    drop(handle);
 
-    if let (Some(hasher), Some(expected)) = (hasher, entry.sha256.as_ref()) {
+    if let (Some(hasher), Some(expected)) = (hasher, file.sha256.as_ref()) {
         if !hasher.finish().eq_ignore_ascii_case(expected) {
             let _ = std::fs::remove_file(&partial);
             return Err(DownloadError::ChecksumMismatch);
         }
     }
 
-    // The rename is what marks the model installed, and it is atomic.
-    std::fs::rename(&partial, store.path_for(entry))
+    // The rename is what marks this file present, and it is atomic.
+    std::fs::rename(&partial, store.file_path(entry, file))
         .map_err(|e| DownloadError::Disk(e.to_string()))?;
 
-    emit_progress(app, entry, total, total);
-    let _ = app.emit(EVENT_COMPLETE, entry.id.clone());
-    Ok(())
+    Ok(received.max(file.bytes.min(received)))
 }
 
 fn emit_progress(app: &AppHandle, entry: &CatalogEntry, received: u64, total: u64) {

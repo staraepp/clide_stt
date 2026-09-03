@@ -36,25 +36,40 @@ pub struct CatalogEntry {
     pub name: String,
     pub engine: Engine,
     pub description: String,
-    /// Bytes on disk once installed. Shown before the download starts.
-    pub download_bytes: u64,
     pub speed: SpeedClass,
     pub quality: QualityClass,
     pub multilingual: bool,
-    /// Where the weights come from.
-    pub url: String,
-    /// The file name to store it under, inside the model's own directory.
-    pub file_name: String,
-    /// SHA-256 of the download, when the source publishes a stable one.
+    /// Everything that must be on disk before the model can load.
     ///
-    /// `None` means Clide can verify that the file arrived complete but not
-    /// that it is the exact file expected. Prefer entries that carry one.
+    /// A list rather than a single path because engines disagree: whisper.cpp
+    /// takes one `.bin`, Parakeet takes an encoder, its weight blob, a decoder
+    /// and a vocabulary, all in one directory.
+    pub files: Vec<ModelFile>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelFile {
+    /// Name on disk, inside the model's own directory. Engines look for these
+    /// exact names, so they are not ours to choose.
+    pub name: String,
+    pub url: String,
+    pub bytes: u64,
+    /// SHA-256, when the source publishes a stable one.
+    ///
+    /// `None` means Clide can verify the file arrived complete but not that it
+    /// is the exact file expected. Prefer entries that carry one.
     pub sha256: Option<String>,
 }
 
 impl CatalogEntry {
+    /// Total bytes across every file. Shown before a download starts.
+    pub fn download_bytes(&self) -> u64 {
+        self.files.iter().map(|file| file.bytes).sum()
+    }
+
     pub fn size_label(&self) -> String {
-        let mb = self.download_bytes as f64 / (1024.0 * 1024.0);
+        let mb = self.download_bytes() as f64 / (1024.0 * 1024.0);
         if mb >= 1024.0 {
             format!("{:.1} GB", mb / 1024.0)
         } else {
@@ -69,49 +84,93 @@ impl CatalogEntry {
 /// Face, which is the canonical source for the GGML conversions.
 pub fn catalog() -> Vec<CatalogEntry> {
     vec![
+        whisper(
+            "whisper-base",
+            "Whisper Base",
+            "Small and quick. Good for clear speech and short notes.",
+            "ggml-base.bin",
+            147_951_465,
+            SpeedClass::Fast,
+            QualityClass::Good,
+        ),
+        whisper(
+            "whisper-small",
+            "Whisper Small",
+            "A clear accuracy gain over Base, still fast on Apple Silicon.",
+            "ggml-small.bin",
+            487_601_967,
+            SpeedClass::Fast,
+            QualityClass::High,
+        ),
+        whisper(
+            "whisper-large-v3-turbo",
+            "Whisper Large v3 Turbo",
+            "Cloud-grade accuracy, entirely on this Mac.",
+            "ggml-large-v3-turbo.bin",
+            1_624_555_275,
+            SpeedClass::Balanced,
+            QualityClass::VeryHigh,
+        ),
         CatalogEntry {
-            id: "whisper-base".into(),
-            name: "Whisper Base".into(),
-            engine: Engine::Whisper,
-            description: "Small and quick. Good for clear speech and short notes.".into(),
-            download_bytes: 147_951_465,
-            speed: SpeedClass::Fast,
-            quality: QualityClass::Good,
-            multilingual: true,
-            url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin".into(),
-            file_name: "ggml-base.bin".into(),
-            sha256: None,
-        },
-        CatalogEntry {
-            id: "whisper-small".into(),
-            name: "Whisper Small".into(),
-            engine: Engine::Whisper,
-            description: "A noticeable accuracy gain over Base, still fast on Apple Silicon."
+            id: "parakeet-tdt-0.6b-v3".into(),
+            name: "Parakeet TDT 0.6B".into(),
+            engine: Engine::Parakeet,
+            description: "NVIDIA's transducer model. Very fast, and strong on \
+                           conversational speech."
                 .into(),
-            download_bytes: 487_601_967,
             speed: SpeedClass::Fast,
-            quality: QualityClass::High,
-            multilingual: true,
-            url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin".into(),
-            file_name: "ggml-small.bin".into(),
-            sha256: None,
-        },
-        CatalogEntry {
-            id: "whisper-large-v3-turbo".into(),
-            name: "Whisper Large v3 Turbo".into(),
-            engine: Engine::Whisper,
-            description: "Cloud-grade accuracy, entirely on this Mac. The best local default."
-                .into(),
-            download_bytes: 1_624_555_275,
-            speed: SpeedClass::Balanced,
             quality: QualityClass::VeryHigh,
             multilingual: true,
-            url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin"
-                .into(),
-            file_name: "ggml-large-v3-turbo.bin".into(),
-            sha256: None,
+            // Four artifacts, all into one directory — `ParakeetTDT::from_pretrained`
+            // takes the directory and looks for these names.
+            files: vec![
+                parakeet_file("encoder-model.onnx", 41_770_866),
+                parakeet_file("encoder-model.onnx.data", 2_435_420_160),
+                parakeet_file("decoder_joint-model.onnx", 72_520_893),
+                parakeet_file("vocab.txt", 93_939),
+            ],
         },
     ]
+}
+
+/// GGML weights, from the canonical whisper.cpp conversions.
+fn whisper(
+    id: &str,
+    name: &str,
+    description: &str,
+    file_name: &str,
+    bytes: u64,
+    speed: SpeedClass,
+    quality: QualityClass,
+) -> CatalogEntry {
+    CatalogEntry {
+        id: id.into(),
+        name: name.into(),
+        engine: Engine::Whisper,
+        description: description.into(),
+        speed,
+        quality,
+        multilingual: true,
+        files: vec![ModelFile {
+            name: file_name.into(),
+            url: format!(
+                "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/{file_name}"
+            ),
+            bytes,
+            sha256: None,
+        }],
+    }
+}
+
+fn parakeet_file(name: &str, bytes: u64) -> ModelFile {
+    ModelFile {
+        name: name.into(),
+        url: format!(
+            "https://huggingface.co/istupakov/parakeet-tdt-0.6b-v3-onnx/resolve/main/{name}"
+        ),
+        bytes,
+        sha256: None,
+    }
 }
 
 pub fn find(id: &str) -> Option<CatalogEntry> {
@@ -130,13 +189,17 @@ mod tests {
     }
 
     #[test]
-    fn every_entry_downloads_over_https() {
+    fn every_file_downloads_over_https() {
         for entry in catalog() {
-            assert!(
-                entry.url.starts_with("https://"),
-                "{} would download over plaintext",
-                entry.id
-            );
+            assert!(!entry.files.is_empty(), "{} has no files", entry.id);
+            for file in &entry.files {
+                assert!(
+                    file.url.starts_with("https://"),
+                    "{}/{} would download over plaintext",
+                    entry.id,
+                    file.name
+                );
+            }
         }
     }
 
@@ -144,11 +207,34 @@ mod tests {
     fn every_entry_declares_a_plausible_size() {
         for entry in catalog() {
             assert!(
-                entry.download_bytes > 1024 * 1024,
+                entry.download_bytes() > 1024 * 1024,
                 "{} claims an implausibly small download",
                 entry.id
             );
         }
+    }
+
+    /// Engines look for exact file names, so a duplicate would silently
+    /// overwrite one of them during download.
+    #[test]
+    fn file_names_are_unique_within_an_entry() {
+        for entry in catalog() {
+            let mut names: Vec<_> = entry.files.iter().map(|f| &f.name).collect();
+            names.sort();
+            let count = names.len();
+            names.dedup();
+            assert_eq!(count, names.len(), "{} repeats a file name", entry.id);
+        }
+    }
+
+    #[test]
+    fn the_multi_file_entry_sums_its_parts() {
+        let parakeet = find("parakeet-tdt-0.6b-v3").unwrap();
+        assert_eq!(parakeet.files.len(), 4);
+        assert_eq!(
+            parakeet.download_bytes(),
+            parakeet.files.iter().map(|f| f.bytes).sum::<u64>()
+        );
     }
 
     #[test]

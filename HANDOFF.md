@@ -9,10 +9,10 @@ repository is for release binaries.
 Read `blueprint.md` (product truth) and `AGENTS.md` (engineering rules) first —
 this file only records *state of the build*, never product decisions.
 
-**Last updated:** 2026-09-03, expansion pass — idle shader reworked, HUD shader
-added, Hold/Press copy fixed, ad assets delivered, **four cloud providers and
-local Whisper added (130 tests passing, clippy clean)**. Issue 1 still blocked
-on the missing Groq key.
+**Last updated:** 2026-09-03 — **Parakeet wired, Models page built**
+(149 tests passing, clippy clean). Six providers: Groq, OpenAI, Deepgram,
+ElevenLabs, AssemblyAI, local Whisper, local Parakeet. Issue 1 still blocked on
+the missing Groq key.
 
 > Update this file at every milestone, not at the end of a session. The user asked
 > for this explicitly. A milestone is: a decision made, a file group rewritten, a
@@ -93,7 +93,48 @@ constants. The aurora and voice-presence code are independent and stay.
 `Ribbon.tsx` took a `behavior` prop and now says "Hold" or "Press" to match the
 card beneath it.
 
-## LOCAL MODELS (2026-09-03) — Whisper done, Parakeet next
+## THE MODELS PAGE (2026-09-03) — built
+
+One screen for both halves of the same decision: which engine, then which of its
+models. `View` gained a `models` entry; `ModelsView.tsx` renders it.
+
+### The ratings are derived, never invented
+
+`AGENTS.md` and blueprint §18 both forbid fake statistics, and a star rating
+pulled from nowhere is exactly that. So every number traces to a fact:
+
+- **`models/hardware.rs`** measures this Mac via `sysctl` — chip string, total
+  memory, performance cores, and whether it is Apple Silicon. No dependency, no
+  permission prompt, read once and cached.
+- **`models/rating.rs`** turns that into stars. Accuracy comes from the model's
+  declared `QualityClass` and **never varies with hardware** (there is a test
+  asserting exactly that). Speed starts from `SpeedClass` and is reduced by
+  three real factors: memory pressure from this model's size against usable
+  RAM, absence of Metal/ANE on Intel, and Parakeet's dynamic ONNX shapes, which
+  the crate's own notes say make CoreML *slower* than CPU here.
+- **There is no popularity score.** Clide has no telemetry and could not know
+  one. If a rating cannot be derived from a measured or declared fact, it does
+  not belong in this file.
+
+`usable_memory_bytes` is two thirds of RAM: the OS, the app being dictated
+into, and Clide all need room, so a model rated "runs great" should not cause
+swapping.
+
+The Models page states the basis in plain text — "Ratings come from this
+hardware, not from a leaderboard" — so the user can judge whether to trust it.
+
+### Feed ordering
+
+`ModelStore::ranked()`: installed first (what you already have is what you can
+use now), then by fit, then by overall rating. Tested so a worse-fitting model
+can never sort above a better one.
+
+### One round trip
+
+`get_models_page` returns models, providers, hardware, and the current
+selection together. Two commands would let the halves disagree mid-render.
+
+## LOCAL MODELS (2026-09-03) — Whisper and Parakeet both wired
 
 **The runtime risk is gone.** Both `whisper-rs 0.16` (with the `metal` feature)
 and `parakeet-rs 0.3` were proved to build on this machine in an isolated probe
@@ -133,27 +174,29 @@ assumed every provider ships a fixed catalogue; the invariant was corrected
 rather than the behaviour — see `every_provider_that_offers_models_defaults_to_
 one_of_them` and its cloud-only counterpart.
 
-### Parakeet — not wired yet, and the path is known
+### Parakeet — done
 
-`parakeet-rs 0.3` builds here and does ASR via ONNX Runtime. To finish it:
+`providers/local/parakeet.rs`, via `parakeet-rs 0.3` and ONNX Runtime. Parakeet
+TDT 0.6B v3, four artifacts totalling ~2.5 GB, loaded from a directory rather
+than a file.
 
-1. Add a `Engine::Parakeet` entry to `models/catalog.rs` pointing at the ONNX
-   weights (the crate's README names the expected artifacts; Parakeet ships as
-   several files, which is exactly why `store.rs` gives each model its own
-   directory rather than assuming one file).
-2. `store.rs` currently checks a single `file_name`. Multi-file models need
-   `is_installed` to check every expected artifact — extend `CatalogEntry` with
-   a list rather than special-casing Parakeet.
-3. Add `providers/local/parakeet.rs` implementing the same trait. It needs
-   16 kHz mono f32, which `read_wav_as_mono_f32` already produces — lift that
-   helper into a shared spot.
+**The multi-file work this forced, and why it was the right shape:**
+`CatalogEntry.file_name` became `files: Vec<ModelFile>`, each with its own URL,
+size and optional checksum. `is_installed` now requires **every** file — a
+regression test covers it, because Parakeet with three of its four artifacts is
+useless and must never read as installed. The downloader fetches them in turn,
+counts files already present toward progress so a resumed download does not
+restart the bar at zero, and still renames each `.partial` only on success.
 
-### Not built: the model manager UI
+File sizes in the catalogue were read from the Hugging Face API, not estimated.
 
-The backend is complete and the commands exist. There is no React screen yet.
-It should be a **list**, not a browser (blueprint §13): name, size, speed and
-quality class, and one button that switches between Download / progress bar /
-Remove. `list_models` returns everything it needs including `sizeLabel`.
+**Execution provider:** left on CPU deliberately. `parakeet-rs`'s own notes say
+CoreML currently runs these graphs *slower* than CPU, because their dynamic
+input shapes stop CoreML planning for the ANE. Revisit if the crate gains
+static-shape exports.
+
+`providers/local/` is now `mod.rs` / `whisper.rs` / `parakeet.rs` / `audio.rs`,
+with the WAV decode shared rather than duplicated.
 
 ## PROVIDERS (2026-09-03) — done
 

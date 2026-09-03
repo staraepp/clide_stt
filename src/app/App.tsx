@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from "motion/react";
 
 import { Dashboard } from "@/dashboard/Dashboard";
 import { HistoryView } from "@/history/HistoryView";
+import { ModelsView } from "@/models/ModelsView";
 import { SettingsView } from "@/settings/SettingsView";
 import { Onboarding } from "@/onboarding/Onboarding";
 import { ShaderBackground } from "@/shaders/ShaderBackground";
@@ -79,7 +80,8 @@ export function App() {
                   onNavigate={setView}
                 />
               )}
-              {view === "history" && <HistoryView />}
+              {view === "models" && <ModelsView />}
+          {view === "history" && <HistoryView />}
               {view === "settings" && (
                 <SettingsView status={status} refresh={refresh} />
               )}

@@ -5,8 +5,12 @@
 //! them into transcripts.
 
 pub mod catalog;
+pub mod hardware;
 pub mod download;
+pub mod rating;
 pub mod store;
 
-pub use catalog::{CatalogEntry, Engine};
+pub use catalog::{CatalogEntry, Engine, ModelFile};
+pub use hardware::{hardware, Hardware};
+pub use rating::{Fit, Rating};
 pub use store::{ModelStatus, ModelStore};

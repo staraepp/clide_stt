@@ -4,10 +4,11 @@ import { stateLabel, stateTone } from "@/dictation/labels";
 import { isBusy, type DictationState, type SystemStatus } from "@/lib/types";
 import { cn } from "@/lib/cn";
 
-export type View = "dashboard" | "history" | "settings";
+export type View = "dashboard" | "models" | "history" | "settings";
 
 const TABS: { value: View; label: string }[] = [
   { value: "dashboard", label: "Dashboard" },
+  { value: "models", label: "Models" },
   { value: "history", label: "History" },
   { value: "settings", label: "Settings" },
 ];

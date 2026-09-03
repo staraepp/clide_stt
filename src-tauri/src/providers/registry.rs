@@ -8,7 +8,7 @@ use super::assemblyai::AssemblyAiProvider;
 use super::deepgram::DeepgramProvider;
 use super::elevenlabs::ElevenLabsProvider;
 use super::groq::GroqProvider;
-use super::local::LocalWhisperProvider;
+use super::local::{LocalParakeetProvider, LocalWhisperProvider};
 use super::openai::OpenAiProvider;
 use super::traits::{ProviderDescriptor, TranscriptionProvider};
 
@@ -34,7 +34,8 @@ impl ProviderRegistry {
                 Arc::new(AssemblyAiProvider::new(http)),
                 // Local runs last in the list but is not a lesser citizen: it
                 // differs by capability, not by rank.
-                Arc::new(LocalWhisperProvider::new(models)),
+                Arc::new(LocalWhisperProvider::new(models.clone())),
+                Arc::new(LocalParakeetProvider::new(models)),
             ],
         }
     }
