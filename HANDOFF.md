@@ -2,51 +2,109 @@
 
 **Canonical repository: https://github.com/staraepp/clide_stt** (branch `main`).
 
-Do not push to `staraepp/clide-react----official-release-builds-`; that
-repository is for release binaries.
+Do not push to `staraepp/clide-react----official-release-builds-`; that repo is
+for release binaries only.
+
+**Website repository: https://github.com/staraepp/Clide-website**, working copy
+at `/Users/brenomenezes/learn/aaa` (Next.js). Deployed at
+https://clide.staraep.fun.
 
 **Purpose:** if the session building Clide ends, another agent picks up here.
 Read `blueprint.md` (product truth) and `AGENTS.md` (engineering rules) first —
 this file only records *state of the build*, never product decisions.
 
-**Last updated:** 2026-09-03 — new app icon, accessibility contradiction
-explained, Copied bubble. **IN PROGRESS:** DMG, website update, push to `main`.
-See "IN FLIGHT" immediately below before doing anything else.
+**Last updated:** 2026-09-03, end of session.
 
-## IN FLIGHT — pick up here
+> Update this file at every milestone, not at the end of a session. The user
+> asked for this explicitly and repeatedly. A milestone is: a decision made, a
+> file group rewritten, a build passing or failing, a test run.
 
-Requested, in order, and how far each got:
+---
 
-| Ask | State |
-|---|---|
-| Minimalist app icon | **done** — `assets/icon.svg`, rendered into `src-tauri/icons/` |
-| Accessibility "granted but not granted" bug | **done** — see below |
-| Copy button says "Copied" then fades | **done** — `components/CopyButton.tsx` |
-| Cute DMG for the website | **done** — `assets/dmg-background.svg`, config in `bundle.macOS.dmg` |
-| HUD pop in/out | **done** — underdamped in, quick out |
-| Update the website | **in progress** — source at `/Users/brenomenezes/learn/aaa` (repo `staraepp/Clide-website`) |
-| Push everything to `main` | **in progress** |
+# START HERE
 
-### The website
+## The app works. Verified end to end, on real hardware.
 
-Next.js, at `/Users/brenomenezes/learn/aaa`, remote `staraepp/Clide-website`,
-one commit. It already links to `staraepp/clide_stt`. What is now stale on it:
+`shortcut -> capture -> transcribe -> process -> insert -> history` runs, and
+has been observed running with **Parakeet CTC entirely on-device** as well as
+with Groq (345–388 ms). The user dictates into other apps with it.
 
-- Download buttons in the hero point at `#top`, not a real release or DMG.
-- It advertises Whisper/Parakeet/Vosk/Moonshine; the app actually ships **11
-  local models** (9 Whisper, 3 Parakeet) and **7 cloud/local STT providers**.
-- No mention of Apple Speech or of Rewrite via Apple Intelligence, both of
-  which now work.
-- `app/icon.svg` is a **four**-bar mark; everything else uses five. Replace it
-  with `assets/icon.svg` from the app repo.
-- The providers section still claims "a single Swift file". The app is Rust.
+```
+cargo test    181 passed, 1 ignored     (the ignored one types into a real app)
+cargo clippy  clean with -D warnings
+tsc / vite    clean
+```
+
+## What is left, in priority order
+
+### 1. Finish the website update — IN PROGRESS, uncommitted
+
+Working copy `/Users/brenomenezes/learn/aaa`. **Edits are made and
+`npm run build` passes, but nothing is committed or pushed.**
+
+Done in the working copy:
+- `app/icon.svg` — was a **four**-bar mark; now the five-bar mark matching the
+  app icon and the in-app wordmark.
+- `app/layout.tsx` — the meta description advertised Vosk and Moonshine, which
+  Clide has never had. Now names what actually ships.
+- `app/page.tsx` — the Models section said "Groq today, local models coming".
+  Both shipped, so it now describes **12 local models and 8 engines**. Hero and
+  mobile "Download for Mac" pointed at `#top`; they now point at
+  `/releases/latest`.
+
+Still to do:
+- Line ~437 still says "File mode is on the roadmap" — true, leave it.
+- **Verify the rendered page.** A screenshot of the models section was never
+  taken: the local `npm run start` served, but reveal-on-scroll animations mean
+  content is invisible until scrolled to, so a naive screenshot shows an empty
+  hero. Scroll first, or set `prefers-reduced-motion`.
+- Commit and push to `staraepp/Clide-website`.
+- Consider hosting the DMG (see below) or linking releases.
+
+### 2. Cut a release so the download links work
+
+`main` is pushed and the download buttons now point at
+`https://github.com/staraepp/clide_stt/releases/latest`, **which does not exist
+yet**. Either create a release with the DMG attached or the buttons 404.
+
+Build it with:
+
+```
+npm run app:build -- --bundles app,dmg
+```
+
+Output: `src-tauri/target/release/bundle/dmg/clide_0.1.0_aarch64.dmg` (~13 MB,
+verified to mount, with the custom background and Applications symlink).
+
+### 3. Sign with a stable identity
+
+The single highest-value remaining fix. See "Ad-hoc signing" below — it makes
+the Accessibility grant survive rebuilds *and* makes the DMG installable
+without a Gatekeeper warning.
+
+---
+
+## WHAT THE APP IS NOW
+
+**8 STT engines:** Groq, Apple Speech, OpenAI, Deepgram, ElevenLabs,
+AssemblyAI, local Whisper, local Parakeet.
+
+**12 local models:** 9 Whisper (74 MB Tiny to 1.5 GB Large v3 Turbo, including
+four quantised builds) and 3 Parakeet (TDT plus CTC full and quantised). Every
+byte count came from the Hugging Face API and every URL was verified to return
+200 with a matching `content-length` — **none are estimates**.
+
+**Three processing modes**, all live: Verbatim, Polished (deterministic, local)
+and Rewrite (Apple Intelligence, on-device).
 
 ### Icon
 
-`assets/icon.svg` is the source of truth. It is rendered to every size by a
-throwaway Swift/WebKit script (no build-time dependency added just to make an
-icon) and assembled with `iconutil`. To change it, edit the SVG and re-render;
-do not hand-edit the PNGs.
+`assets/icon.svg` is the source of truth. Sizes are rendered by a throwaway
+Swift/WebKit script — no build dependency was added just to make an icon — and
+assembled with `iconutil`. **Edit the SVG and re-render; never hand-edit the
+PNGs.** If a stale icon appears after a change, it is macOS's cache: `touch`
+the bundle, `lsregister -f` it, delete
+`~/Library/Caches/com.apple.iconservices.store`, `killall Dock`.
  Six providers: Groq, OpenAI, Deepgram,
 ElevenLabs, AssemblyAI, local Whisper, local Parakeet. Issue 1 still blocked on
 the missing Groq key.
@@ -1187,3 +1245,95 @@ cargo clippy  clean as of the retheme commit
 
 The user changed their shortcut to `Cmd+Period` at runtime; the default in code
 is `Alt+Period`, matching the marketing site.
+
+
+---
+
+# TRAPS — things that already cost a session
+
+Every one of these was hit, diagnosed, and fixed. They all look like something
+else, so read before debugging any of them again.
+
+### `-webkit-app-region: drag` is ignored by this webview
+
+It is present in the built CSS and does nothing; only the native overlay strip
+was draggable, so the window felt stuck. The title bar uses
+**`data-tauri-drag-region`** instead. Do not "simplify" it back.
+
+### `AXIsProcessTrusted()` goes stale
+
+It resolves once and can stay stale for the life of the process, so granting
+Accessibility *while Clide is running* left it reporting `false` until
+relaunch — which is exactly what onboarding asks people to do.
+`ax::is_process_trusted()` now falls through to a **functional probe**: make an
+AX call and check for `kAXErrorAPIDisabled`. Asking by doing cannot go stale.
+
+### `reqwest`'s `timeout` covers the response body
+
+A 90-second client timeout is not "90 s to respond", it is "90 s to finish
+downloading", so every model download died mid-stream with an opaque
+"error decoding response body". Downloads use a **separate client with no total
+timeout**, bounded by `connect_timeout` and `read_timeout` instead. **Never add
+`.timeout()` to that client.**
+
+### `foundation-models` needs a Swift rpath
+
+It compiles a Swift shim linking `libswift_Concurrency.dylib`, which on this
+SDK exists only in Xcode's back-deployment directory. Without the rpath the
+binary links fine and **aborts at launch** with a dyld error naming fifty paths
+and no cause. `build.rs::link_swift_runtime()` adds it. Do not remove it.
+
+### `DmgConfig` lives under `bundle.macOS.dmg`
+
+Not `bundle.dmg`. The error message does not say so.
+
+### Ad-hoc signing loses the Accessibility grant every rebuild
+
+macOS keys the grant to the code signature. An ad-hoc signature has no
+certificate, so the requirement names the binary's `cdhash`, which changes on
+every build. System Settings still shows the switch on — it is keyed by path —
+while the API says no. `permissions/signing.rs` detects this and the Setup card
+explains it, because a prompt cannot fix it.
+
+**The cure is a stable signing identity**, and it is the highest-value
+remaining task: it fixes this *and* Gatekeeper on the DMG.
+
+### `app_screenshot` returns a blank window for this app
+
+The accelerated WebGL layer defeats that capture path. Use
+`screencapture -o -x -l <window_id>`, with the id from Quartz
+`CGWindowListCopyWindowInfo`. **A blank `app_screenshot` is not a broken UI.**
+
+---
+
+# DESIGN — the rules, and why
+
+The user rejected two earlier directions ("2010 trying to be edgy", then "too
+generic"). What survived:
+
+1. **The identity is not ours to invent.** It comes from the marketing site:
+   paper `#F4F9FD`, navy ink `#0A2338` (no black anywhere), Montserrat 500,
+   DM Sans, lowercase `clide`, the five-bar mark. Fonts are bundled as woff2
+   because the app is offline and its CSP admits no remote font host.
+2. **Blue means voice.** `--color-voice` appears only where clide is hearing or
+   handling speech. Buttons, links and headings are ink. A blue anywhere else
+   is a bug, not a decoration.
+3. **The ribbon is the signature**, and the wordmark is a **live level meter**
+   while dictating. That is the one place clide's identity and its function are
+   the same object.
+4. **Grids, not lists.** Settings is a 12-column bento, not a stack of
+   full-width cards; Setup, refine engines and cloud models are all card grids.
+   The user asked for this specifically.
+5. **The shader is only ever seen in the gutters** — every card is opaque
+   white. It was tuned for a readability problem that does not exist; do not
+   re-throttle it.
+6. **No invented statistics.** The usage card counts real rows. Model star
+   ratings derive from the model's declared class and this Mac's measured chip
+   and memory — there is no popularity score, because clide has no telemetry
+   and could not know one. The page says so on screen.
+
+# NOT BUILT
+
+Imports (blueprint §17), per-app profiles (§8), the context system (§9),
+streaming transcription, and history/models UI polish. `blueprint.md` remains
+the product truth for all of it.
