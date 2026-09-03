@@ -17,8 +17,11 @@ pub struct AppState {
     pub credentials: Credentials,
     /// Local model weights on this machine.
     pub models: ModelStore,
-    /// Shared HTTP client, reused for model downloads.
+    /// Shared HTTP client for provider API calls. Has a total timeout.
     pub http: reqwest::Client,
+    /// Separate client for model downloads: no total timeout, because that
+    /// would cap how long a download may take. See `lib.rs`.
+    pub downloads: reqwest::Client,
     pub recorder: Recorder,
     pub providers: ProviderRegistry,
     /// Text refinement, kept separate from transcription (blueprint §7).
@@ -42,6 +45,7 @@ impl AppState {
         credentials: Credentials,
         models: ModelStore,
         http: reqwest::Client,
+        downloads: reqwest::Client,
         recorder: Recorder,
         providers: ProviderRegistry,
     ) -> Self {
@@ -60,6 +64,7 @@ impl AppState {
             credentials,
             models,
             http,
+            downloads,
             recorder,
             providers,
             refiners: RefinerRegistry::new(),

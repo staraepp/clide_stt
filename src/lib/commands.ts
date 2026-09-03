@@ -9,6 +9,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { openUrl as openExternal } from "@tauri-apps/plugin-opener";
 import type {
   About,
+  PermissionStatus,
   FallbackPolicy,
   RefineStyle,
   RefinerDescriptor,
@@ -19,7 +20,6 @@ import type {
   DictationState,
   HistoryQuery,
   PermissionSnapshot,
-  PermissionStatus,
   ProcessingMode,
   ProviderDescriptor,
   ProviderStatus,
@@ -156,3 +156,7 @@ export async function openUrl(url: string): Promise<void> {
     console.error("could not open the link", error);
   }
 }
+
+/** Apple Speech only. Separate from the microphone, even though it is on-device. */
+export const requestSpeechPermission = () =>
+  invoke<PermissionStatus>("request_speech_permission");

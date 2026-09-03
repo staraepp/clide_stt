@@ -36,7 +36,9 @@ export function SystemCard({
   status: SystemStatus;
   onRefresh: () => void;
 }) {
-  const { microphone, accessibility } = status.permissions;
+  const { microphone, accessibility, speechRecognition } = status.permissions;
+  // Only Apple Speech needs it, so it only appears when Apple Speech is chosen.
+  const usingAppleSpeech = status.settings.providerId === "apple";
 
   return (
     <Card index={4} className="col-span-12 flex flex-col p-4.5 lg:col-span-4">
@@ -88,6 +90,27 @@ export function SystemCard({
           }
         />
 
+        {usingAppleSpeech && (
+          <Row
+            tone={permissionTone(speechRecognition)}
+            name="Speech"
+            value={permissionLabel(speechRecognition)}
+            action={
+              speechRecognition !== "granted" && (
+                <Button
+                  size="sm"
+                  onClick={async () => {
+                    await commands.requestSpeechPermission();
+                    onRefresh();
+                  }}
+                >
+                  Grant
+                </Button>
+              )
+            }
+          />
+        )}
+
         <Row
           tone={status.shortcutRegistered ? "ready" : "problem"}
           name="Shortcut"
@@ -98,7 +121,7 @@ export function SystemCard({
               "In use by another app"
             )
           }
-          wide
+          wide={!usingAppleSpeech}
         />
       </ul>
 

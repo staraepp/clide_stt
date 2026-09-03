@@ -158,6 +158,33 @@ pub fn select_provider(
     provider_store::set_model(&state.db.lock(), &provider_id, &model_id, now_ms())
         .map_err(|error| error.to_string())?;
 
+    // Apple Speech needs macOS's speech-recognition consent, which is separate
+    // from the microphone even though recognition is on-device. Asking here —
+    // at the moment the user chooses it — keeps the prompt tied to the reason
+    // for it, and stops the provider failing every attempt with
+    // "macOS hasn't been asked yet".
+    if provider_id == "apple" {
+        let granted = tauri::async_runtime::spawn_blocking(
+            crate::permissions::request_speech_access,
+        );
+        let app_handle = app.clone();
+        tauri::async_runtime::spawn(async move {
+            match granted.await {
+                Ok(status) => {
+                    tracing::info!(?status, "speech recognition permission resolved");
+                    // The Setup card reads permissions fresh; nudge it.
+                    crate::dictation::events::emit_bare(
+                        &app_handle,
+                        crate::dictation::events::SETTINGS_CHANGED,
+                    );
+                }
+                Err(error) => {
+                    tracing::warn!(?error, "speech permission request did not complete")
+                }
+            }
+        });
+    }
+
     state.update_settings(|settings| {
         settings.provider_id = provider_id.clone();
         settings.model_id = model_id.clone();

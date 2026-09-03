@@ -231,7 +231,7 @@ pub fn get_about() -> About {
 
 #[cfg(test)]
 mod credential_status_tests {
-    use crate::providers::{CredentialRequirement, ProviderRegistry, TranscriptionProvider};
+    use crate::providers::{CredentialRequirement, ProviderRegistry};
 
     fn registry() -> ProviderRegistry {
         ProviderRegistry::new(

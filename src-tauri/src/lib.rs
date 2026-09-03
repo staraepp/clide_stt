@@ -40,6 +40,19 @@ const AUDIO_REAPER_INTERVAL: Duration = Duration::from_secs(30);
 /// still paying attention.
 const HTTP_TIMEOUT: Duration = Duration::from_secs(90);
 
+/// Model downloads get their own client, and deliberately **no total
+/// timeout**.
+///
+/// `reqwest`'s `timeout` covers the whole request *including reading the
+/// body*, so a 90-second cap kills any download longer than 90 seconds — which
+/// is every model in the catalogue. The symptom is an opaque
+/// "error decoding response body" partway through.
+///
+/// A stalled connection is still caught, by these two instead: the host has to
+/// answer, and once streaming, bytes have to keep arriving.
+const DOWNLOAD_CONNECT_TIMEOUT: Duration = Duration::from_secs(20);
+const DOWNLOAD_READ_TIMEOUT: Duration = Duration::from_secs(60);
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tracing_subscriber::fmt()
@@ -68,6 +81,7 @@ pub fn run() {
             commands::dictation::get_dictation_state,
             commands::permissions::get_permissions,
             commands::permissions::request_microphone_permission,
+            commands::permissions::request_speech_permission,
             commands::permissions::request_accessibility_permission,
             commands::permissions::open_accessibility_settings,
             commands::permissions::open_microphone_settings,
@@ -123,11 +137,18 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         .user_agent(concat!("Clide/", env!("CARGO_PKG_VERSION")))
         .build()?;
 
+    let downloads = reqwest::Client::builder()
+        .connect_timeout(DOWNLOAD_CONNECT_TIMEOUT)
+        .read_timeout(DOWNLOAD_READ_TIMEOUT)
+        .user_agent(concat!("Clide/", env!("CARGO_PKG_VERSION")))
+        .build()?;
+
     handle.manage(AppState::new(
         database,
         Credentials::new(&data_dir),
         ModelStore::new(&data_dir),
         http.clone(),
+        downloads,
         recorder,
         ProviderRegistry::new(http, ModelStore::new(&data_dir)),
     ));

@@ -39,7 +39,7 @@ pub struct Failed {
 
 #[derive(Debug, thiserror::Error)]
 pub enum DownloadError {
-    #[error("could not reach the model host: {0}")]
+    #[error("the download was interrupted: {0}")]
     Network(String),
 
     #[error("the model host returned {0}")]
@@ -109,6 +109,8 @@ async fn fetch_file(
     let partial = store.partial_path(entry, file);
     let mut handle =
         std::fs::File::create(&partial).map_err(|e| DownloadError::Disk(e.to_string()))?;
+
+    tracing::debug!(model = %entry.id, file = %file.name, "downloading");
 
     let mut hasher = file.sha256.as_ref().map(|_| Sha256Writer::new());
     let mut received: u64 = 0;

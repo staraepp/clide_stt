@@ -11,6 +11,7 @@ use async_trait::async_trait;
 
 use super::audio::read_wav_as_mono_f32;
 use crate::models::{catalog, Engine, ModelStore};
+use crate::models::catalog::ParakeetArch;
 use crate::providers::error::ProviderError;
 use crate::providers::traits::{
     Capabilities, CredentialRequirement, ModelInfo, Transcription, TranscriptionProvider,
@@ -28,8 +29,10 @@ impl LocalParakeetProvider {
         Self { models }
     }
 
-    /// Parakeet loads from a *directory*, not a file.
-    fn directory_for(&self, model_id: &str) -> Result<PathBuf, ProviderError> {
+    /// Parakeet loads from a *directory*, not a file, and the two
+    /// architectures take different code paths — so the entry is resolved
+    /// alongside the path.
+    fn resolve(&self, model_id: &str) -> Result<(PathBuf, ParakeetArch), ProviderError> {
         let entry = catalog::find(model_id).ok_or_else(|| ProviderError::UnknownModel {
             provider: PROVIDER_ID,
             model: model_id.to_string(),
@@ -43,7 +46,12 @@ impl LocalParakeetProvider {
             });
         }
 
-        Ok(self.models.directory_for(&entry))
+        let arch = entry.arch.ok_or_else(|| ProviderError::UnknownModel {
+            provider: PROVIDER_ID,
+            model: model_id.to_string(),
+        })?;
+
+        Ok((self.models.directory_for(&entry), arch))
     }
 }
 
@@ -111,7 +119,7 @@ impl TranscriptionProvider for LocalParakeetProvider {
         request: TranscriptionRequest,
         _credential: Option<&str>,
     ) -> Result<Transcription, ProviderError> {
-        let directory = self.directory_for(&request.model)?;
+        let (directory, arch) = self.resolve(&request.model)?;
         let audio = read_wav_as_mono_f32(request.audio.path())?;
         let sample_rate = request.audio.sample_rate;
 
@@ -121,7 +129,7 @@ impl TranscriptionProvider for LocalParakeetProvider {
         // ONNX inference is blocking and CPU-heavy; it must not run on an
         // async worker or it would stall every other task in the runtime.
         let text = tauri::async_runtime::spawn_blocking(move || {
-            run_parakeet(&directory, audio, sample_rate)
+            run_parakeet(&directory, arch, audio, sample_rate)
         })
         .await
         .map_err(|_| ProviderError::ServiceUnavailable {
@@ -141,10 +149,11 @@ impl TranscriptionProvider for LocalParakeetProvider {
 
 fn run_parakeet(
     directory: &std::path::Path,
+    arch: ParakeetArch,
     audio: Vec<f32>,
     sample_rate: u32,
 ) -> Result<String, ProviderError> {
-    use parakeet_rs::{ParakeetTDT, Transcriber};
+    use parakeet_rs::{Parakeet, ParakeetTDT, Transcriber};
 
     let failure = |detail: String| ProviderError::BadRequest {
         provider: PROVIDER_ID,
@@ -154,13 +163,22 @@ fn run_parakeet(
     // `None` leaves the crate on its CPU default. Its own notes say CoreML
     // currently runs these graphs *slower*, because their dynamic shapes stop
     // CoreML from planning for the ANE — so opting in would be a regression.
-    let mut model = ParakeetTDT::from_pretrained(directory, None)
-        .map_err(|e| failure(format!("the model could not be loaded: {e}")))?;
-
-    let result = model
-        // Clide captures mono, so one channel and no timestamp mode.
-        .transcribe_samples(audio, sample_rate, 1, None)
-        .map_err(|e| failure(format!("transcription failed: {e}")))?;
+    //
+    // Both architectures satisfy the same `Transcriber` trait, so only
+    // construction differs; Clide captures mono, hence one channel.
+    let result = match arch {
+        ParakeetArch::Tdt => {
+            let mut model = ParakeetTDT::from_pretrained(directory, None)
+                .map_err(|e| failure(format!("the model could not be loaded: {e}")))?;
+            model.transcribe_samples(audio, sample_rate, 1, None)
+        }
+        ParakeetArch::Ctc => {
+            let mut model = Parakeet::from_pretrained(directory, None)
+                .map_err(|e| failure(format!("the model could not be loaded: {e}")))?;
+            model.transcribe_samples(audio, sample_rate, 1, None)
+        }
+    }
+    .map_err(|e| failure(format!("transcription failed: {e}")))?;
 
     Ok(result.text.trim().to_string())
 }

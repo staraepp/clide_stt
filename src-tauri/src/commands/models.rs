@@ -73,7 +73,7 @@ pub fn download_model(app: AppHandle, model_id: String) -> Result<(), String> {
     tauri::async_runtime::spawn(async move {
         let (models, http) = {
             let state = app.state::<AppState>();
-            (state.models.clone(), state.http.clone())
+            (state.models.clone(), state.downloads.clone())
         };
 
         if let Err(error) = download::download(&app, &models, &entry, &http).await {

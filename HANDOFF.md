@@ -9,9 +9,8 @@ repository is for release binaries.
 Read `blueprint.md` (product truth) and `AGENTS.md` (engineering rules) first —
 this file only records *state of the build*, never product decisions.
 
-**Last updated:** 2026-09-03 — **personality pass**: the idle field actually
-moves, the wordmark is a live meter, About panel with GitHub links, easter
-eggs, and every list became a card grid (174 tests passing, clippy clean). Six providers: Groq, OpenAI, Deepgram,
+**Last updated:** 2026-09-03 — **11 local models**, speech-permission bug
+fixed, and the download timeout bug fixed (179 tests passing, clippy clean). Six providers: Groq, OpenAI, Deepgram,
 ElevenLabs, AssemblyAI, local Whisper, local Parakeet. Issue 1 still blocked on
 the missing Groq key.
 
@@ -93,6 +92,55 @@ constants. The aurora and voice-presence code are independent and stay.
 
 `Ribbon.tsx` took a `behavior` prop and now says "Hold" or "Press" to match the
 card beneath it.
+
+## TWO REAL BUGS (2026-09-03)
+
+### Downloads died partway with "error decoding response body"
+
+`HTTP_TIMEOUT` was 90 s, and in `reqwest` **`timeout` covers the whole request
+including reading the body**. So the cap was not "90 s to respond", it was
+"90 s to finish downloading" — which every model in the catalogue exceeds. The
+stream was aborted mid-body and surfaced as an opaque decode error.
+
+Model downloads now use their **own client with no total timeout**, in
+`lib.rs`. A dead connection is still caught, by `connect_timeout` (20 s) and
+`read_timeout` (60 s) instead — the host must answer, and once streaming, bytes
+must keep arriving. **Do not add `.timeout()` to that client.**
+
+### Apple Speech always failed with "macOS hasn't been asked yet"
+
+`providers::apple::request_authorization()` existed and **nothing ever called
+it**, so the status stayed `NotDetermined` forever and every attempt failed.
+
+Speech recognition is now a first-class permission (`permissions/speech.rs`),
+part of `PermissionSnapshot`, requested when the user *selects* Apple Speech —
+which keeps the prompt attached to the reason for it — and shown in the Setup
+card, but only when Apple Speech is the chosen provider, since nothing else
+needs it. It is deliberately **not** part of `can_capture`/`can_insert`: a Mac
+without it is still ready to dictate with every other engine.
+
+## LOCAL MODEL CATALOGUE — 11 entries (2026-09-03)
+
+Nine Whisper builds and three Parakeet, spanning **74 MB to 2.5 GB**, so there
+is something worth trying on any Mac. Every byte count was read from the
+Hugging Face API and every URL was verified to return `200` with a matching
+`content-length` — none are estimates.
+
+The quantised builds are the interesting additions: `whisper-large-v3-turbo-q5`
+gives Turbo's accuracy at 547 MB instead of 1.5 GB, and is the best trade in
+the catalogue.
+
+### Parakeet now has two architectures
+
+TDT (transducer) and CTC take **different loaders** and ship different
+artifacts, so `CatalogEntry` gained `arch: Option<ParakeetArch>` and
+`run_parakeet` matches on it. The catalogue states the architecture rather than
+the loader guessing from which files happen to be present. A test asserts every
+Parakeet entry declares one and nothing else does.
+
+The CTC repository nests weights under `onnx/` and suffixes quantised builds,
+but the loader expects fixed names — so `ModelFile.name` and the remote path
+deliberately differ, with a test pinning that.
 
 ## PERSONALITY PASS (2026-09-03)
 

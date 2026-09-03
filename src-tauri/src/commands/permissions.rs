@@ -32,3 +32,14 @@ pub fn open_accessibility_settings() {
 pub fn open_microphone_settings() {
     permissions::open_microphone_settings();
 }
+
+/// Ask macOS for speech-recognition access.
+///
+/// Separate from the microphone: macOS treats handing audio to the recogniser
+/// as its own consent, even on-device. Only Apple Speech needs it.
+#[tauri::command]
+pub async fn request_speech_permission() -> Result<crate::permissions::PermissionStatus, String> {
+    tauri::async_runtime::spawn_blocking(crate::permissions::request_speech_access)
+        .await
+        .map_err(|_| "The permission request did not complete.".to_string())
+}

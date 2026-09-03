@@ -1,4 +1,4 @@
-//! Microphone and Accessibility permission state.
+//! Microphone, Accessibility, and speech-recognition permission state.
 //!
 //! Clide never asks for a permission at launch. Every prompt here is triggered
 //! by the onboarding step that explains why it is needed, and every request is
@@ -6,10 +6,12 @@
 //! that the user said yes.
 
 mod microphone;
+mod speech;
 
 use serde::Serialize;
 
 pub use microphone::request_microphone_access;
+pub use speech::request as request_speech_access;
 
 use crate::insertion::ax;
 
@@ -37,6 +39,9 @@ impl PermissionStatus {
 pub struct PermissionSnapshot {
     pub microphone: PermissionStatus,
     pub accessibility: PermissionStatus,
+    /// Only needed by Apple Speech. Every other engine ignores it, so Clide
+    /// never prompts for it unless that provider is selected.
+    pub speech_recognition: PermissionStatus,
 }
 
 impl PermissionSnapshot {
@@ -55,6 +60,7 @@ pub fn snapshot() -> PermissionSnapshot {
     PermissionSnapshot {
         microphone: microphone::status(),
         accessibility: accessibility_status(),
+        speech_recognition: speech::status(),
     }
 }
 
@@ -113,12 +119,16 @@ mod tests {
         let granted = PermissionSnapshot {
             microphone: PermissionStatus::Granted,
             accessibility: PermissionStatus::Granted,
+            // Not part of readiness: only Apple Speech needs it, so a machine
+            // without it is still ready to dictate with every other engine.
+            speech_recognition: PermissionStatus::NotDetermined,
         };
         assert!(granted.can_capture() && granted.can_insert());
 
         let mic_only = PermissionSnapshot {
             microphone: PermissionStatus::Granted,
             accessibility: PermissionStatus::NotDetermined,
+            speech_recognition: PermissionStatus::NotDetermined,
         };
         assert!(mic_only.can_capture());
         assert!(!mic_only.can_insert());

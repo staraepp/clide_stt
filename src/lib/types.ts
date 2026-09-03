@@ -43,6 +43,7 @@ export type PermissionStatus =
 export interface PermissionSnapshot {
   microphone: PermissionStatus;
   accessibility: PermissionStatus;
+  speechRecognition: PermissionStatus;
 }
 
 export type FallbackPolicy = "off" | "localOnly" | "anyConfigured";
