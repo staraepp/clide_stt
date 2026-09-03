@@ -1,0 +1,451 @@
+//! The dictation transaction, end to end.
+//!
+//! ```text
+//! shortcut -> capture -> finalize -> transcribe -> process -> insert -> history
+//! ```
+//!
+//! Every step moves the state machine first and emits second, so the UI can
+//! never observe a stage that the machine did not agree to. Nothing here
+//! retries by itself and nothing silently changes provider: a failure stops,
+//! keeps whatever it has, and waits for the user.
+
+use std::time::Duration;
+
+use tauri::{AppHandle, Manager};
+
+use crate::audio::AudioError;
+use crate::database::{now_ms, transcripts};
+use crate::dictation::events;
+use crate::dictation::machine::{DictationInput, DictationState, FailureStage};
+use crate::hud;
+use crate::insertion;
+use crate::processing;
+use crate::providers::{AudioClip, TranscriptionRequest};
+use crate::state::AppState;
+
+/// How often the HUD waveform is refreshed. 30 Hz is smooth to the eye and
+/// two orders of magnitude cheaper than emitting per audio callback.
+const LEVEL_INTERVAL: Duration = Duration::from_millis(33);
+
+/// How long the Done state stays on screen before the HUD disappears.
+const DONE_LINGER: Duration = Duration::from_millis(900);
+
+/// Begin capturing. Safe to call from the shortcut, the tray, or the UI; a
+/// call that arrives mid-transaction is ignored rather than treated as an error.
+pub async fn start(app: &AppHandle) {
+    let state = app.state::<AppState>();
+
+    // Applying first makes the "am I allowed to start" check atomic.
+    let Ok(next) = state.session.apply(DictationInput::StartCapture) else {
+        tracing::debug!(current = state.session.state().name(), "start ignored");
+        return;
+    };
+
+    // Captured now, not at insertion time: history should record the app the
+    // user was speaking to, even if they switch away while it transcribes.
+    let target = insertion::focus::frontmost();
+    state.session.begin(target.clone());
+
+    if let Err(error) = state.recorder.start() {
+        tracing::error!(?error, "microphone capture failed to start");
+        fail(app, FailureStage::Capture, capture_message(&error));
+        return;
+    }
+
+    events::emit_state(app, &next);
+    events::emit(
+        app,
+        events::DICTATION_STARTED,
+        events::StartedPayload {
+            target_app: target.app_name.clone(),
+        },
+    );
+
+    hud::show(app);
+    spawn_level_ticker(app.clone());
+}
+
+/// Stop capturing and run the rest of the pipeline.
+pub async fn stop(app: &AppHandle) {
+    let state = app.state::<AppState>();
+
+    let Ok(next) = state.session.apply(DictationInput::StopCapture) else {
+        tracing::debug!(current = state.session.state().name(), "stop ignored");
+        return;
+    };
+    events::emit_state(app, &next);
+    events::emit_bare(app, events::DICTATION_STOPPED);
+
+    let recorder = app.clone();
+    let recorded = tauri::async_runtime::spawn_blocking(move || {
+        recorder.state::<AppState>().recorder.stop()
+    })
+    .await;
+
+    let clip = match recorded {
+        Ok(Ok(clip)) => clip,
+        Ok(Err(error)) => {
+            tracing::warn!(?error, "no usable audio");
+            state.session.release_audio();
+            fail(app, FailureStage::Capture, capture_message(&error));
+            return;
+        }
+        Err(error) => {
+            tracing::error!(?error, "audio worker panicked");
+            state.session.release_audio();
+            fail(app, FailureStage::Capture, "The recording could not be saved.");
+            return;
+        }
+    };
+
+    // The target captured at start is kept: the user may already be looking
+    // somewhere else, but they were speaking to that app.
+    state.session.attach(clip);
+
+    let Ok(next) = state.session.apply(DictationInput::AudioFinalized) else {
+        return;
+    };
+    events::emit_state(app, &next);
+
+    transcribe_and_deliver(app).await;
+}
+
+/// Re-run the still-pending audio through the provider after a failure.
+pub async fn retry(app: &AppHandle) {
+    let state = app.state::<AppState>();
+
+    if !state.session.can_retry() {
+        tracing::debug!("retry requested with no recoverable audio");
+        return;
+    }
+
+    let Ok(next) = state.session.apply(DictationInput::Retry) else {
+        return;
+    };
+    events::emit_state(app, &next);
+
+    transcribe_and_deliver(app).await;
+}
+
+/// Abandon the transaction. Audio is deleted immediately.
+pub async fn cancel(app: &AppHandle) {
+    let state = app.state::<AppState>();
+
+    if state.session.state().is_capturing() {
+        state.recorder.abort();
+    }
+
+    let applied = state.session.apply(DictationInput::Cancel);
+    state.session.release_audio();
+    hud::hide(app);
+
+    if let Ok(next) = applied {
+        events::emit_state(app, &next);
+    }
+}
+
+/// Acknowledge a settled state and return to Idle.
+pub fn dismiss(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    state.session.release_audio();
+    hud::hide(app);
+    if let Ok(next) = state.session.apply(DictationInput::Dismiss) {
+        events::emit_state(app, &next);
+    }
+}
+
+// --- pipeline stages -------------------------------------------------------
+
+async fn transcribe_and_deliver(app: &AppHandle) {
+    let Some(raw) = transcribe(app).await else {
+        return;
+    };
+    let Some(processed) = process(app, raw) else {
+        return;
+    };
+    persist(app, &processed);
+    deliver(app, processed).await;
+}
+
+async fn transcribe(app: &AppHandle) -> Option<String> {
+    let state = app.state::<AppState>();
+    events::emit_bare(app, events::TRANSCRIPTION_STARTED);
+
+    let Some(pending) = state.session.pending_snapshot() else {
+        fail(app, FailureStage::Transcription, "The recording is no longer available.");
+        return None;
+    };
+
+    let (provider_id, model_id, language) = {
+        let settings = state.settings();
+        (settings.provider_id, settings.model_id, settings.language)
+    };
+
+    let Some(provider) = state.providers.get(&provider_id) else {
+        fail(
+            app,
+            FailureStage::Transcription,
+            format!("The provider \"{provider_id}\" is not available in this build."),
+        );
+        return None;
+    };
+
+    // The secret lives only inside this scope — it is never logged, stored in
+    // the session, or returned to the frontend.
+    let credential = match state.credentials.read(&provider_id) {
+        Ok(value) => value,
+        Err(error) => {
+            fail(app, FailureStage::Transcription, error.to_string());
+            return None;
+        }
+    };
+
+    let request = TranscriptionRequest {
+        audio: AudioClip::wav(pending.path, pending.duration_secs),
+        model: model_id,
+        language,
+        prompt: None,
+    };
+
+    match provider.transcribe(request, credential.as_deref()).await {
+        Ok(result) => {
+            tracing::info!(
+                provider = %result.provider,
+                model = %result.model,
+                latency_ms = result.latency_ms,
+                characters = result.text.len(),
+                "transcription complete"
+            );
+            events::emit(
+                app,
+                events::TRANSCRIPTION_COMPLETE,
+                events::TextPayload {
+                    text: result.text.clone(),
+                },
+            );
+            Some(result.text)
+        }
+        Err(error) => {
+            tracing::warn!(%error, "transcription failed");
+            // Retry is offered while the audio is still on disk — not based on
+            // the error being transient. A wrong API key is worth retrying
+            // once the user has fixed it.
+            let retryable = state.session.can_retry();
+            let message = error.to_string();
+
+            let next = state
+                .session
+                .apply(DictationInput::transcription_failure(&message, retryable));
+            if let Ok(next) = next {
+                events::emit_state(app, &next);
+            }
+            events::emit(
+                app,
+                events::TRANSCRIPTION_FAILED,
+                events::FailurePayload { message, retryable },
+            );
+            hud::show(app);
+            None
+        }
+    }
+}
+
+fn process(app: &AppHandle, raw: String) -> Option<String> {
+    let state = app.state::<AppState>();
+
+    let Ok(next) = state.session.apply(DictationInput::TranscriptReceived) else {
+        return None;
+    };
+    events::emit_state(app, &next);
+    events::emit_bare(app, events::PROCESSING_STARTED);
+
+    let mode = state.settings().mode;
+    match processing::process(mode, &raw) {
+        Ok(text) => {
+            events::emit(
+                app,
+                events::PROCESSING_COMPLETE,
+                events::TextPayload { text: text.clone() },
+            );
+            Some(text)
+        }
+        Err(error) => {
+            // The transcript survives: the failure state carries it so the UI
+            // can still offer Copy.
+            let next = state.session.apply(DictationInput::Failed {
+                stage: FailureStage::Processing,
+                message: error.to_string(),
+                retryable: false,
+                transcript: Some(raw),
+                on_clipboard: false,
+            });
+            if let Ok(next) = next {
+                events::emit_state(app, &next);
+            }
+            hud::show(app);
+            None
+        }
+    }
+}
+
+/// Save before inserting.
+///
+/// Insertion is the step most likely to fail (a read-only control, a hostile
+/// app, revoked Accessibility access). Writing history first means a transcript
+/// that reached this point cannot be lost by anything that happens next.
+fn persist(app: &AppHandle, text: &str) {
+    let state = app.state::<AppState>();
+    let source_app = state.session.target().app_name;
+
+    let record = transcripts::NewTranscript {
+        text: text.to_string(),
+        source: transcripts::TranscriptSource::Dictation,
+        source_app,
+    };
+
+    let saved = transcripts::insert(&state.db.lock(), record, now_ms());
+    match saved {
+        Ok(saved) => {
+            tracing::debug!(id = %saved.id, "transcript saved");
+            events::emit_bare(app, events::HISTORY_CHANGED);
+        }
+        Err(error) => {
+            // History is important but not worth cancelling an insertion over;
+            // the user still gets their text.
+            tracing::error!(?error, "could not save transcript to history");
+        }
+    }
+}
+
+async fn deliver(app: &AppHandle, text: String) {
+    let state = app.state::<AppState>();
+
+    let Ok(next) = state.session.apply(DictationInput::Processed) else {
+        return;
+    };
+    events::emit_state(app, &next);
+    events::emit_bare(app, events::INSERTION_STARTED);
+
+    let payload = text.clone();
+    let outcome =
+        tauri::async_runtime::spawn_blocking(move || insertion::insert(&payload)).await;
+
+    // The transcript is delivered (or on the clipboard); the audio has done
+    // its job either way.
+    state.session.release_audio();
+
+    match outcome {
+        Ok(Ok(method)) => {
+            let next = state.session.apply(DictationInput::Inserted {
+                transcript: text,
+                method,
+            });
+            if let Ok(next) = next {
+                events::emit_state(app, &next);
+            }
+            events::emit_bare(app, events::INSERTION_COMPLETE);
+            schedule_hud_dismiss(app.clone());
+        }
+        Ok(Err(failure)) => {
+            tracing::warn!(message = %failure.message, "insertion failed");
+            let next = state.session.apply(DictationInput::insertion_failure(
+                &failure.message,
+                &text,
+                failure.on_clipboard,
+            ));
+            if let Ok(next) = next {
+                events::emit_state(app, &next);
+            }
+            events::emit(
+                app,
+                events::INSERTION_FAILED,
+                events::FailurePayload {
+                    message: failure.message,
+                    retryable: false,
+                },
+            );
+            hud::show(app);
+        }
+        Err(error) => {
+            tracing::error!(?error, "insertion task panicked");
+            let next = state.session.apply(DictationInput::insertion_failure(
+                "Clide could not reach the focused application.",
+                &text,
+                false,
+            ));
+            if let Ok(next) = next {
+                events::emit_state(app, &next);
+            }
+            hud::show(app);
+        }
+    }
+}
+
+// --- helpers ---------------------------------------------------------------
+
+fn fail(app: &AppHandle, stage: FailureStage, message: impl Into<String>) {
+    let state = app.state::<AppState>();
+    if let Ok(next) = state.session.apply(DictationInput::failure(stage, message)) {
+        events::emit_state(app, &next);
+    }
+    hud::show(app);
+}
+
+fn capture_message(error: &AudioError) -> String {
+    match error {
+        AudioError::NoInputDevice => {
+            "No microphone was found. Connect one and try again.".into()
+        }
+        AudioError::PermissionDenied => {
+            "clide needs microphone access. Enable it in System Settings.".into()
+        }
+        AudioError::Empty => "Nothing was recorded — check that the right microphone is selected.".into(),
+        other => other.to_string(),
+    }
+}
+
+/// Push microphone level to the HUD while capturing.
+fn spawn_level_ticker(app: AppHandle) {
+    let epoch = app.state::<AppState>().session.epoch();
+
+    tauri::async_runtime::spawn(async move {
+        loop {
+            {
+                let state = app.state::<AppState>();
+                // Stop as soon as this transaction is over, or a newer one
+                // has taken its place.
+                if state.session.epoch() != epoch || !state.session.state().is_capturing() {
+                    break;
+                }
+                events::emit(
+                    &app,
+                    events::LEVEL,
+                    events::LevelPayload {
+                        level: state.recorder.level(),
+                    },
+                );
+            }
+            tokio::time::sleep(LEVEL_INTERVAL).await;
+        }
+
+        events::emit(&app, events::LEVEL, events::LevelPayload { level: 0.0 });
+    });
+}
+
+/// Let the Done state breathe, then get out of the way.
+fn schedule_hud_dismiss(app: AppHandle) {
+    let epoch = app.state::<AppState>().session.epoch();
+
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(DONE_LINGER).await;
+
+        let state = app.state::<AppState>();
+        // A new dictation may have started while Done was showing.
+        if state.session.epoch() != epoch {
+            return;
+        }
+        if matches!(state.session.state(), DictationState::Complete { .. }) {
+            dismiss(&app);
+        }
+    });
+}

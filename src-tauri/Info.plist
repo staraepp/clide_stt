@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>Clide records your voice only while you hold the dictation shortcut, so it can transcribe what you said and type it into the app you are using.</string>
+  <key>NSAppleEventsUsageDescription</key>
+  <string>Clide needs to send keystrokes so it can paste dictated text into other applications.</string>
+  <key>LSMinimumSystemVersion</key>
+  <string>13.0</string>
+</dict>
+</plist>

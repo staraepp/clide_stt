@@ -1,0 +1,202 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   clide's design system.
+
+   The identity comes from the marketing site, not from here: paper #F4F9FD,
+   navy ink #0A2338, Montserrat 500 for display, DM Sans for everything else.
+   No black, no gradients, no glow.
+
+   One rule governs colour: **blue means voice.** `--color-voice` and its
+   relatives appear only where clide is hearing or handling speech — the
+   waveform, the listening state, the caret. Buttons, links and headings are
+   ink. A blue that turns up anywhere else is a bug.
+
+   Fonts are bundled rather than linked: the app runs offline and its CSP
+   admits no remote font host.
+--------------------------------------------------------------------------- */
+
+@font-face {
+  font-family: "Montserrat";
+  src: url("./fonts/montserrat-latin.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "DM Sans";
+  src: url("./fonts/dm-sans-latin.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "DM Mono";
+  src: url("./fonts/dm-mono-400-latin.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "DM Mono";
+  src: url("./fonts/dm-mono-500-latin.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: block;
+}
+
+@theme {
+  /* Surfaces. Cards are lighter than the page, so they lift without a shadow. */
+  --color-paper: #f4f9fd;
+  --color-card: #ffffff;
+  --color-sunken: #f7fafc;
+
+  /* Ink. Navy rather than black — softer, and what the site already uses. */
+  --color-ink: #0a2338;
+  --color-ink-2: #4a6076;
+  --color-ink-3: #64798c;
+
+  --color-line: #e3edf5;
+  --color-line-2: #d2e2ee;
+
+  /* Voice. Reserved for speech: waveform, listening, caret. Nothing else. */
+  --color-voice: #5b9bc9;
+  --color-voice-deep: #3b7ca8;
+  --color-voice-tint: #e9f3fb;
+
+  /* Semantic state, kept apart from the accent and used only at small sizes. */
+  --color-ok: #3f8f6d;
+  --color-ok-tint: #f3faf6;
+  --color-warn: #b3812c;
+  --color-stop: #c4574f;
+  --color-stop-tint: #fdf4f3;
+
+  --radius-card: 16px;
+  --radius-ctl: 10px;
+
+  --font-sans: "DM Sans", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-display: "Montserrat", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-mono: "DM Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+
+  /* The HUD is a floating chip, not a window: nothing behind it paints. */
+  .clide-hud-root,
+  .clide-hud-root body {
+    background: transparent;
+  }
+
+  ::selection {
+    background: var(--color-voice-tint);
+  }
+
+  /* Focus stays visible — a dictation utility is heavily keyboard-driven. */
+  :focus-visible {
+    outline: 2px solid var(--color-voice-deep);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  button {
+    font: inherit;
+  }
+}
+
+@layer components {
+  /* The bento surface. One definition, used by every card. */
+  .card {
+    background: var(--color-card);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-card);
+    min-width: 0;
+  }
+
+  /* Micro-label. Mono and tracked, matching the site's section eyebrows. */
+  .label {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--color-ink-3);
+  }
+
+  /* Display type. Montserrat at 500 — medium, never bold. */
+  .display {
+    font-family: var(--font-display);
+    font-weight: 500;
+    letter-spacing: -0.015em;
+  }
+
+  .numeral {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Keycap, used wherever a shortcut is shown. */
+  .key {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
+    border: 1px solid var(--color-line-2);
+    border-bottom-width: 2px;
+    border-radius: 6px;
+    background: #fbfdff;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--color-ink-2);
+  }
+
+  .scroll-area {
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-line-2) transparent;
+  }
+}
+
+@layer utilities {
+  .drag-region {
+    -webkit-app-region: drag;
+  }
+  .no-drag {
+    -webkit-app-region: no-drag;
+  }
+}
+
+/* Honour the system preference everywhere, not only in the shader. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
