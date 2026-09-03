@@ -1,0 +1,172 @@
+import { AnimatePresence, motion } from "motion/react";
+import { Check, Copy, RotateCw, X } from "lucide-react";
+
+import { Waveform } from "@/components/Waveform";
+import { useDictationState } from "@/dictation/useDictationState";
+import { useMicLevel } from "@/dictation/useMicLevel";
+import { failureDetail, stateLabel } from "@/dictation/labels";
+import * as commands from "@/lib/commands";
+import { transcriptOf, type DictationState } from "@/lib/types";
+import { cn } from "@/lib/cn";
+
+/**
+ * The recording HUD.
+ *
+ * A chip, not a window: no title bar, no settings, no engine menu. It shows one
+ * line of state and, when something has gone wrong, the two or three controls
+ * needed to recover. The window never takes focus, so the caret stays where the
+ * user left it.
+ */
+export function Hud() {
+  const state = useDictationState();
+  const level = useMicLevel();
+
+  const failure = failureDetail(state);
+  const transcript = transcriptOf(state);
+  const expanded = failure !== null;
+
+  return (
+    <div className="flex h-full w-full items-end justify-center pb-4">
+      <AnimatePresence>
+        {state.kind !== "idle" && (
+          <motion.div
+            key="hud"
+            initial={{ opacity: 0, y: 10, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 6, scale: 0.97 }}
+            transition={{ type: "spring", stiffness: 470, damping: 34, mass: 0.7 }}
+            className={cn(
+              "pointer-events-auto flex flex-col overflow-hidden rounded-[13px]",
+              "border border-line-2 bg-card/92 backdrop-blur-xl",
+              "shadow-[0_6px_22px_-8px_rgba(10,35,56,0.28)]",
+              expanded ? "w-[300px]" : "w-auto",
+            )}
+          >
+            <div className="flex items-center gap-2.5 px-3.5 py-2.5">
+              <Visual state={state} levelRef={level} />
+              <span
+                className={cn(
+                  "whitespace-nowrap text-[12.5px]",
+                  expanded ? "text-ink" : "text-ink",
+                )}
+              >
+                {stateLabel(state)}
+              </span>
+            </div>
+
+            {failure && (
+              <div className="border-t border-line px-3.5 py-2.5">
+                <p className="text-[11.5px] leading-relaxed text-ink-2">
+                  {failure}
+                </p>
+                <div className="mt-2.5 flex items-center gap-1.5">
+                  {state.kind === "transcriptionFailed" && state.retryable && (
+                    <HudAction
+                      icon={<RotateCw size={11} />}
+                      label="Retry"
+                      primary
+                      onClick={() => commands.retryDictation()}
+                    />
+                  )}
+                  {transcript && (
+                    <HudAction
+                      icon={<Copy size={11} />}
+                      label="Copy"
+                      onClick={() => commands.copyText(transcript)}
+                    />
+                  )}
+                  <HudAction
+                    icon={<X size={11} />}
+                    label="Dismiss"
+                    onClick={() => commands.dismissDictation()}
+                  />
+                </div>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+/** The left-hand glyph: waveform, activity shimmer, tick, or warning. */
+function Visual({
+  state,
+  levelRef,
+}: {
+  state: DictationState;
+  levelRef: React.RefObject<number>;
+}) {
+  if (state.kind === "capturing") {
+    return (
+      <div className="h-4 w-[58px]">
+        <Waveform levelRef={levelRef} bars={16} color="#5b9bc9" />
+      </div>
+    );
+  }
+
+  if (state.kind === "complete") {
+    return (
+      <motion.span
+        initial={{ scale: 0.4, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ type: "spring", stiffness: 600, damping: 20 }}
+        className="flex size-4 items-center justify-center rounded-full bg-ok/15 text-ok"
+      >
+        <Check size={10} strokeWidth={3} />
+      </motion.span>
+    );
+  }
+
+  if (failureDetail(state)) {
+    return <span className="size-1.5 shrink-0 rounded-full bg-stop" />;
+  }
+
+  // Transcribing / inserting: the waveform settles into a travelling shimmer.
+  return (
+    <div className="flex h-4 w-[58px] items-center gap-[3px]">
+      {Array.from({ length: 10 }).map((_, index) => (
+        <motion.span
+          key={index}
+          className="h-full w-[2.5px] rounded-full bg-voice"
+          animate={{ scaleY: [0.24, 0.92, 0.24], opacity: [0.35, 1, 0.35] }}
+          transition={{
+            duration: 1.1,
+            repeat: Infinity,
+            ease: "easeInOut",
+            delay: index * 0.075,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function HudAction({
+  icon,
+  label,
+  onClick,
+  primary,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  primary?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "inline-flex h-6 items-center gap-1.5 rounded-md px-2 text-[11px] transition-colors",
+        primary
+          ? "bg-ink text-white hover:bg-[#12314a]"
+          : "text-ink-3 hover:bg-sunken hover:text-ink",
+      )}
+    >
+      {icon}
+      {label}
+    </button>
+  );
+}
