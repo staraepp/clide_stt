@@ -1,0 +1,6 @@
+https://ui.8starlabs.com/docs
+https://react.dev/learn
+https://chanhdai.com/components
+https://fluid-functionalism.vercel.app/docs/thinking-indicator
+https://fluid-functionalism.vercel.app/docs/select
+https://fluid-functionalism.vercel.app/docs/scrollbars

@@ -1,0 +1,82 @@
+//! The event contract between Rust and the UI.
+//!
+//! Two layers, on purpose:
+//!
+//! * `STATE` carries the whole `DictationState` and is what the UI actually
+//!   renders from. One authoritative value means the interface cannot show a
+//!   contradictory combination of flags.
+//! * The lifecycle events mirror the pipeline stages for anything that needs
+//!   to react to a specific moment (the HUD's success chime, a future menu-bar
+//!   animation) without diffing state.
+
+use serde::Serialize;
+use tauri::{AppHandle, Emitter};
+
+use super::machine::DictationState;
+
+pub const STATE: &str = "dictation:state";
+pub const LEVEL: &str = "dictation:level";
+
+pub const DICTATION_STARTED: &str = "dictation:started";
+pub const DICTATION_STOPPED: &str = "dictation:stopped";
+
+pub const TRANSCRIPTION_STARTED: &str = "transcription:started";
+pub const TRANSCRIPTION_COMPLETE: &str = "transcription:complete";
+pub const TRANSCRIPTION_FAILED: &str = "transcription:failed";
+
+pub const PROCESSING_STARTED: &str = "processing:started";
+pub const PROCESSING_COMPLETE: &str = "processing:complete";
+
+pub const INSERTION_STARTED: &str = "insertion:started";
+pub const INSERTION_COMPLETE: &str = "insertion:complete";
+pub const INSERTION_FAILED: &str = "insertion:failed";
+
+/// A new row landed in history; the dashboard and history view refresh.
+pub const HISTORY_CHANGED: &str = "history:changed";
+
+/// Settings changed in the backend (e.g. a shortcut re-registration).
+pub const SETTINGS_CHANGED: &str = "settings:changed";
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LevelPayload {
+    /// 0.0..=1.0 microphone RMS.
+    pub level: f32,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TextPayload {
+    pub text: String,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FailurePayload {
+    pub message: String,
+    /// Whether the UI should offer Retry.
+    pub retryable: bool,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StartedPayload {
+    /// The app that will receive the text, for the HUD's context line.
+    pub target_app: Option<String>,
+}
+
+pub fn emit_state(app: &AppHandle, state: &DictationState) {
+    if let Err(error) = app.emit(STATE, state) {
+        tracing::warn!(?error, "could not emit dictation state");
+    }
+}
+
+pub fn emit<T: Serialize + Clone>(app: &AppHandle, name: &str, payload: T) {
+    if let Err(error) = app.emit(name, payload) {
+        tracing::warn!(?error, name, "could not emit event");
+    }
+}
+
+pub fn emit_bare(app: &AppHandle, name: &str) {
+    emit(app, name, ());
+}

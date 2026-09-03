@@ -1,0 +1,130 @@
+import { Card, CardHeader } from "@/components/Card";
+import { StatusDot, type Tone } from "@/components/StatusDot";
+import { Button } from "@/components/Button";
+import { Keys } from "@/components/Keys";
+import * as commands from "@/lib/commands";
+import type { PermissionStatus, SystemStatus } from "@/lib/types";
+
+function permissionTone(status: PermissionStatus): Tone {
+  if (status === "granted") return "ready";
+  if (status === "denied" || status === "restricted") return "problem";
+  return "pending";
+}
+
+function permissionLabel(status: PermissionStatus): string {
+  switch (status) {
+    case "granted":
+      return "Granted";
+    case "denied":
+      return "Denied";
+    case "restricted":
+      return "Blocked by policy";
+    case "notDetermined":
+      return "Not granted";
+  }
+}
+
+/**
+ * Readiness at a glance. Every row is a real system fact read from macOS, not a
+ * value clide is remembering from the last time it asked.
+ */
+export function SystemCard({
+  status,
+  onRefresh,
+}: {
+  status: SystemStatus;
+  onRefresh: () => void;
+}) {
+  const { microphone, accessibility } = status.permissions;
+
+  return (
+    <Card index={4} className="col-span-12 flex flex-col p-4.5 lg:col-span-4">
+      <CardHeader
+        label="Setup"
+        action={
+          <Button size="sm" variant="ghost" onClick={onRefresh}>
+            Re-check
+          </Button>
+        }
+      />
+
+      <ul className="mt-2 flex flex-col">
+        <Row
+          tone={permissionTone(microphone)}
+          name="Microphone"
+          value={permissionLabel(microphone)}
+          action={
+            microphone !== "granted" && (
+              <Button
+                size="sm"
+                onClick={async () => {
+                  await commands.requestMicrophonePermission();
+                  onRefresh();
+                }}
+              >
+                Grant
+              </Button>
+            )
+          }
+        />
+
+        <Row
+          tone={permissionTone(accessibility)}
+          name="Accessibility"
+          value={accessibility === "granted" ? "Granted" : "Not granted"}
+          action={
+            accessibility !== "granted" && (
+              <Button
+                size="sm"
+                onClick={async () => {
+                  await commands.requestAccessibilityPermission();
+                  commands.openAccessibilitySettings();
+                }}
+              >
+                Open Settings
+              </Button>
+            )
+          }
+        />
+
+        <Row
+          tone={status.shortcutRegistered ? "ready" : "problem"}
+          name="Shortcut"
+          value={
+            status.shortcutRegistered ? (
+              <Keys accelerator={status.settings.shortcut} />
+            ) : (
+              "Another app is using this combination"
+            )
+          }
+        />
+      </ul>
+
+      <div className="mt-auto flex items-center gap-2 pt-4 text-[12.5px] text-ink-2">
+        <StatusDot tone={status.ready ? "ready" : "pending"} />
+        {status.ready ? "clide is ready to dictate." : "Setup isn't finished yet."}
+      </div>
+    </Card>
+  );
+}
+
+function Row({
+  tone,
+  name,
+  value,
+  action,
+}: {
+  tone: Tone;
+  name: string;
+  value: React.ReactNode;
+  action?: React.ReactNode;
+}) {
+  return (
+    <li className="flex items-center gap-2.5 border-t border-line py-2.5 first:border-t-0">
+      <StatusDot tone={tone} />
+      <span className="text-[13px] text-ink">{name}</span>
+      <span className="ml-auto truncate text-[12.5px] text-ink-3">{value}</span>
+      {action}
+    </li>
+  );
+}
