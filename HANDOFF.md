@@ -1272,7 +1272,20 @@ downloading", so every model download died mid-stream with an opaque
 timeout**, bounded by `connect_timeout` and `read_timeout` instead. **Never add
 `.timeout()` to that client.**
 
-### THE INSERTION BUG — Accessibility lied about succeeding
+### THE INSERTION BUG — Accessibility lied about succeeding (FIXED, VERIFIED)
+
+**Confirmed working 2026-09-04** against the Claude app, the input that had
+never accepted a transcript:
+
+```
+inserting  target_app="Claude"  frontmost="Claude"
+accessibility insertion declined; typing
+  reason="the control reported success but its text did not change"
+```
+
+The verification caught the false success, the chain fell through, and typing
+delivered the text. ~280-340 ms end to end.
+
 
 Three fixes missed because the diagnosis was wrong. What the log finally showed:
 
