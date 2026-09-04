@@ -47,6 +47,10 @@ pub async fn start(app: &AppHandle) {
     let target = insertion::focus::frontmost();
     state.session.begin(target.clone());
 
+    // Lower other apps' audio so the user's voice is the loudest thing in the
+    // room. Restored on every path out of capture — see `unduck_audio`.
+    state.session.duck_audio();
+
     if let Err(error) = state.recorder.start() {
         tracing::error!(?error, "microphone capture failed to start");
         fail(app, FailureStage::Capture, capture_message(&error));
@@ -76,6 +80,10 @@ pub async fn stop(app: &AppHandle) {
     };
     events::emit_state(app, &next);
     events::emit_bare(app, events::DICTATION_STOPPED);
+
+    // The microphone is closed, so there is nothing left to hear over.
+    // Transcription does not need the room quiet.
+    state.session.unduck_audio();
 
     let recorder = app.clone();
     let recorded =
@@ -138,6 +146,7 @@ pub async fn cancel(app: &AppHandle) {
     if state.session.state().is_capturing() {
         state.recorder.abort();
     }
+    state.session.unduck_audio();
 
     let applied = state.session.apply(DictationInput::Cancel);
     state.session.release_audio();
@@ -530,6 +539,9 @@ async fn deliver(app: &AppHandle, text: String) {
 // --- helpers ---------------------------------------------------------------
 
 fn fail(app: &AppHandle, stage: FailureStage, message: impl Into<String>) {
+    // Whatever went wrong, the user's volume is not part of it.
+    app.state::<AppState>().session.unduck_audio();
+
     let state = app.state::<AppState>();
     if let Ok(next) = state.session.apply(DictationInput::failure(stage, message)) {
         events::emit_state(app, &next);

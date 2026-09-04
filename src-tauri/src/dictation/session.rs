@@ -33,6 +33,11 @@ pub struct PendingSnapshot {
 pub struct DictationSession {
     state: Mutex<DictationState>,
     pending: Mutex<Option<Pending>>,
+    /// Held while the microphone is open, so other apps' audio is quieter than
+    /// the user's voice. Dropping it restores their volume — which is why it
+    /// lives here rather than in a local variable that an early return could
+    /// skip past.
+    ducked: Mutex<Option<crate::audio::ducking::Ducked>>,
     /// Incremented on every new transaction. Deferred work (auto-hiding the
     /// HUD, the level ticker) carries the epoch it was started for and stops
     /// as soon as a newer transaction begins.
@@ -50,6 +55,7 @@ impl DictationSession {
         Self {
             state: Mutex::new(DictationState::Idle),
             pending: Mutex::new(None),
+            ducked: Mutex::new(None),
             epoch: AtomicU64::new(0),
         }
     }
@@ -162,6 +168,27 @@ impl DictationSession {
             guard.take();
         }
         stale
+    }
+}
+
+impl DictationSession {
+    /// Lower other apps' audio for the length of the recording.
+    ///
+    /// Safe to call twice; the second call replaces the first, restoring the
+    /// original level before ducking again.
+    pub fn duck_audio(&self) {
+        *self.ducked.lock().unwrap_or_else(|e| e.into_inner()) =
+            crate::audio::ducking::Ducked::engage();
+    }
+
+    /// Put the user's volume back.
+    ///
+    /// Called from every path that ends a recording — stop, cancel, and every
+    /// capture failure — because a transaction that ends any other way must
+    /// still not leave their Mac quiet.
+    pub fn unduck_audio(&self) {
+        // Dropping the guard is what restores it.
+        self.ducked.lock().unwrap_or_else(|e| e.into_inner()).take();
     }
 }
 
