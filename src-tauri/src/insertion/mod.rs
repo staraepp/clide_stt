@@ -113,15 +113,37 @@ fn insert_via_accessibility(text: &str, target: &FocusTarget) -> Result<(), Stri
         })
         .ok_or_else(|| "nothing is focused to type into in the target application".to_string())?;
 
-    // Read-only controls (web views, labels, canvas-based editors) report the
-    // attribute but refuse writes. Asking first avoids a silent no-op.
+    // Read-only controls (labels, canvas-based editors) refuse outright.
     if !focused.is_settable(ax::ATTR_SELECTED_TEXT) {
         return Err("the focused control does not accept direct text".into());
     }
 
+    // Asking is not enough. Electron and Chromium text areas report
+    // `AXSelectedText` as settable, accept the write, return `kAXErrorSuccess`
+    // — and do nothing. That is not a hypothetical: the Claude app's input is
+    // an `AXTextArea` that does exactly this, and it silently swallowed every
+    // transcript while reporting success, so nothing ever reached the typing
+    // fallback.
+    //
+    // So the write is *verified* rather than trusted: read the control's value
+    // before and after, and treat "nothing changed" as a refusal.
+    let before = focused.string_attribute(ax::ATTR_VALUE);
+
     focused
         .set_string_attribute(ax::ATTR_SELECTED_TEXT, text)
-        .map_err(ax::describe)
+        .map_err(ax::describe)?;
+
+    // Only verifiable when the control exposes its value. When it does not,
+    // there is no evidence either way, and claiming failure would insert the
+    // transcript twice — once here and once by typing.
+    if let Some(before) = before {
+        let after = focused.string_attribute(ax::ATTR_VALUE).unwrap_or_default();
+        if after == before {
+            return Err("the control reported success but its text did not change".into());
+        }
+    }
+
+    Ok(())
 }
 
 /// Put the transcript on the clipboard and send a targeted paste. It stays on

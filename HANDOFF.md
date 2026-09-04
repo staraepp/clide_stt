@@ -1272,6 +1272,42 @@ downloading", so every model download died mid-stream with an opaque
 timeout**, bounded by `connect_timeout` and `read_timeout` instead. **Never add
 `.timeout()` to that client.**
 
+### THE INSERTION BUG — Accessibility lied about succeeding
+
+Three fixes missed because the diagnosis was wrong. What the log finally showed:
+
+```
+inserting  target_app="Claude"  target_pid=33170  frontmost="Claude"
+<nothing further>
+```
+
+The right app was frontmost, and `insert_via_accessibility` returned `Ok` — so
+it returned early and **the typing and paste fallbacks were never reached**.
+The Accessibility write was reporting success and doing nothing.
+
+Confirmed against the live app with System Events:
+
+```
+role=AXTextArea   selSettable=true   AXValue exists
+```
+
+Electron/Chromium text areas report `AXSelectedText` as settable, accept the
+write, return `kAXErrorSuccess`, and change nothing. The old guard —
+"ask `is_settable` first to avoid a silent no-op" — cannot work, because the
+app lies.
+
+**The fix: verify, do not trust.** `insert_via_accessibility` reads `AXValue`
+before and after and treats "unchanged" as a refusal, which lets the fallback
+chain actually run.
+
+Deliberate limit: verification only happens when the control exposes
+`AXValue`. Without it there is no evidence either way, and claiming failure
+would insert the transcript **twice** — once by Accessibility and again by
+typing. Keep that asymmetry in mind before "tightening" this.
+
+**Debugging lesson:** the log line naming target vs frontmost app is what
+solved it. Do not remove it.
+
 ### Insertion: paste is now the LAST resort, not the first fallback
 
 The Claude app took neither the Accessibility write nor a synthetic paste. The
