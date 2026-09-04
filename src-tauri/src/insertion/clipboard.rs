@@ -13,6 +13,8 @@
 
 use std::ffi::c_void;
 use std::sync::{Mutex, MutexGuard};
+use std::thread;
+use std::time::Duration;
 
 use core_foundation::base::TCFType;
 use core_foundation::string::{CFString, CFStringRef};
@@ -26,6 +28,8 @@ use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
 /// Virtual key codes (Carbon `kVK_*`), stable across keyboard layouts.
 const KEY_V: u16 = 0x09;
 const KEY_COMMAND: u16 = 0x37;
+const PASTEBOARD_SETTLE_DELAY: Duration = Duration::from_millis(50);
+const KEY_EVENT_DELAY: Duration = Duration::from_millis(10);
 
 static PASTEBOARD: Mutex<()> = Mutex::new(());
 
@@ -198,12 +202,15 @@ pub fn text() -> Option<String> {
     access(|pasteboard| pasteboard.text())
 }
 
-/// Send Cmd+V to the app that owned focus when dictation began.
+/// Send Cmd+V through the system HID event stream to the currently focused app.
 ///
 /// The Command key is pressed and released as real key events rather than only
 /// setting the modifier flag: some applications watch for the physical
 /// modifier and ignore a bare flagged keystroke.
-pub fn send_paste_keystroke(target_pid: Option<i32>) -> Result<(), String> {
+pub fn send_paste_keystroke() -> Result<(), String> {
+    // A HID source plus HID posting matches physical keyboard delivery. Posting
+    // to a stored PID is unreliable for AppKit/WebKit controls because paste is
+    // routed by the current key window, not merely by process identity.
     let source = CGEventSource::new(CGEventSourceStateID::CombinedSessionState)
         .map_err(|_| "could not create a keyboard event source".to_string())?;
 
@@ -213,18 +220,26 @@ pub fn send_paste_keystroke(target_pid: Option<i32>) -> Result<(), String> {
         (KEY_V, false, CGEventFlags::CGEventFlagCommand),
         (KEY_COMMAND, false, CGEventFlags::CGEventFlagNull),
     ];
+    let event_count = events.len();
 
-    for (key, down, flags) in events {
+    for (index, (key, down, flags)) in events.into_iter().enumerate() {
         let event = CGEvent::new_keyboard_event(source.clone(), key, down)
             .map_err(|_| "could not create the paste keystroke".to_string())?;
         event.set_flags(flags);
-        match target_pid {
-            Some(pid) => event.post_to_pid(pid),
-            None => event.post(CGEventTapLocation::HID),
+        event.post(CGEventTapLocation::HID);
+        if index + 1 < event_count {
+            thread::sleep(KEY_EVENT_DELAY);
         }
     }
 
     Ok(())
+}
+
+/// Give AppKit/WebKit time to observe the new pasteboard change count before
+/// the paste chord arrives. Fast back-to-back write/event delivery is dropped
+/// intermittently by real editors even though both calls report success.
+pub fn wait_until_pasteboard_is_ready() {
+    thread::sleep(PASTEBOARD_SETTLE_DELAY);
 }
 
 #[cfg(test)]

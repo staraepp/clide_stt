@@ -6,12 +6,12 @@
 
 pub mod audio;
 pub mod commands;
+pub mod credentials;
 pub mod database;
 pub mod dictation;
 pub mod hud;
 pub mod insertion;
 pub mod models;
-pub mod credentials;
 pub mod permissions;
 pub mod processing;
 pub mod providers;
@@ -27,8 +27,8 @@ use tauri::{AppHandle, Listener, Manager};
 
 use audio::Recorder;
 use credentials::Credentials;
-use models::ModelStore;
 use database::Database;
+use models::ModelStore;
 use providers::ProviderRegistry;
 use state::AppState;
 
@@ -79,6 +79,7 @@ pub fn run() {
             commands::dictation::retry_dictation,
             commands::dictation::dismiss_dictation,
             commands::dictation::get_dictation_state,
+            commands::dictation::test_insertion,
             commands::permissions::get_permissions,
             commands::permissions::request_microphone_permission,
             commands::permissions::request_speech_permission,
@@ -114,6 +115,7 @@ pub fn run() {
             commands::settings::set_language,
             commands::settings::complete_onboarding,
             commands::settings::reset_onboarding,
+            commands::updates::check_for_updates,
         ])
         .run(tauri::generate_context!())
         .expect("clide failed to start");

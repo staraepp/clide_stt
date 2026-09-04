@@ -13,4 +13,6 @@ pub mod registry;
 pub mod traits;
 
 pub use registry::RefinerRegistry;
-pub use traits::{RefineError, RefineRequest, RefineStyle, Refiner, RefinerDescriptor};
+pub use traits::{
+    accepts_refinement, RefineError, RefineRequest, RefineStyle, Refiner, RefinerDescriptor,
+};

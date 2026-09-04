@@ -26,6 +26,7 @@ import type {
   SystemStatus,
   Transcript,
   VisualIntensity,
+  UpdateStatus,
 } from "./types";
 
 // --- dictation -------------------------------------------------------------
@@ -37,6 +38,7 @@ export const retryDictation = () => invoke<void>("retry_dictation");
 export const dismissDictation = () => invoke<void>("dismiss_dictation");
 export const getDictationState = () =>
   invoke<DictationState>("get_dictation_state");
+export const testInsertion = () => invoke<string>("test_insertion");
 
 // --- permissions -----------------------------------------------------------
 
@@ -142,6 +144,8 @@ export const setRefineStyle = (style: RefineStyle) =>
   invoke<void>("set_refine_style", { style });
 
 export const getAbout = () => invoke<About>("get_about");
+export const checkForUpdates = (force = false) =>
+  invoke<UpdateStatus>("check_for_updates", { force });
 
 /**
  * Open a link in the user's browser.

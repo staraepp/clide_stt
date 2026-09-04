@@ -4,7 +4,11 @@ use tauri::{AppHandle, Manager};
 
 use crate::dictation::machine::DictationState;
 use crate::dictation::pipeline;
+use crate::insertion;
 use crate::state::AppState;
+
+const INSERTION_TEST_TEXT: &str =
+    "Clide insertion test: every word reached this field exactly.";
 
 #[tauri::command]
 pub async fn start_dictation(app: AppHandle) {
@@ -38,4 +42,24 @@ pub fn dismiss_dictation(app: AppHandle) {
 #[tauri::command]
 pub fn get_dictation_state(app: AppHandle) -> DictationState {
     app.state::<AppState>().session.state()
+}
+
+/// Let Settings prove the native delivery path without recording or spending
+/// provider credit. The delay gives the user time to focus any editable field.
+#[tauri::command]
+pub async fn test_insertion() -> Result<String, String> {
+    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    let target = insertion::focus::frontmost();
+    let label = target.label().to_string();
+    let method = tauri::async_runtime::spawn_blocking(move || {
+        insertion::insert(INSERTION_TEST_TEXT, &target)
+    })
+        .await
+        .map_err(|error| format!("The insertion test could not run: {error}"))?
+        .map_err(|failure| failure.message)?;
+    let method = match method {
+        crate::dictation::machine::InsertionMethod::Accessibility => "Accessibility",
+        crate::dictation::machine::InsertionMethod::ClipboardPaste => "clipboard paste",
+    };
+    Ok(format!("{label} via {method}"))
 }

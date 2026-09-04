@@ -10,3 +10,4 @@ pub mod models;
 pub mod permissions;
 pub mod providers;
 pub mod settings;
+pub mod updates;

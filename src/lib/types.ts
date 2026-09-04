@@ -272,3 +272,13 @@ export interface About {
   license: string;
   tauriVersion: string;
 }
+
+/** Latest public GitHub release, cached by the native app for 24 hours. */
+export interface UpdateStatus {
+  currentVersion: string;
+  latestVersion: string | null;
+  updateAvailable: boolean;
+  releaseUrl: string;
+  /** Unix milliseconds. */
+  checkedAt: number | null;
+}

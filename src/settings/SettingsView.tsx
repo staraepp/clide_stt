@@ -18,6 +18,7 @@ export function SettingsView({
   refresh: () => void;
 }) {
   const [shortcutError, setShortcutError] = useState<string | null>(null);
+  const [insertionTest, setInsertionTest] = useState<string | null>(null);
 
   return (
     <div className="scroll-area -mr-2 grid h-full auto-rows-min grid-cols-12 gap-3 py-3 pb-12 pr-2">
@@ -152,7 +153,26 @@ export function SettingsView({
           >
             Run setup again
           </Button>
+          <Button
+            variant="ghost"
+            onClick={async () => {
+              setInsertionTest("Focus an editable field — testing in 2 seconds…");
+              try {
+                const result = await commands.testInsertion();
+                setInsertionTest(`Inserted into ${result}.`);
+              } catch (error) {
+                setInsertionTest(commands.errorMessage(error));
+              }
+            }}
+          >
+            Test insertion
+          </Button>
         </div>
+        {insertionTest && (
+          <p className="mt-3 text-[12px] leading-relaxed text-ink-3">
+            {insertionTest}
+          </p>
+        )}
       </Section>
 
       <Section

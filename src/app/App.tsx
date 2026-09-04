@@ -14,6 +14,7 @@ import { EVENTS, on } from "@/lib/events";
 import { useEasterEggs } from "./useEasterEggs";
 import { isBusy } from "@/lib/types";
 import { TitleBar, type View } from "./TitleBar";
+import * as commands from "@/lib/commands";
 
 export function App() {
   const { status, refresh } = useSystemStatus();
@@ -21,6 +22,14 @@ export function App() {
   const [view, setView] = useState<View>("dashboard");
   const state = useDictationState();
   const level = useMicLevel();
+
+  // Native persistence makes this a real once-per-day check across launches,
+  // rather than one request every time React remounts.
+  useEffect(() => {
+    commands
+      .checkForUpdates(false)
+      .catch((error) => console.debug("background update check skipped", error));
+  }, []);
 
   // The tray's "Settings…" item navigates the already-open window.
   useEffect(() => {

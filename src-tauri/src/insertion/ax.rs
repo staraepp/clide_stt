@@ -59,48 +59,11 @@ extern "C" {
 /// Without this, every AX call returns `kAXErrorAPIDisabled` and insertion
 /// falls through to the clipboard path.
 ///
-/// # Why this does not simply return `AXIsProcessTrusted()`
-///
-/// That flag is resolved when the process first asks and can then stay stale
-/// for the lifetime of the process. Granting Accessibility while Clide is
-/// running — which is exactly what onboarding asks people to do — leaves it
-/// reporting `false` until the app is relaunched, so the user sees the switch
-/// on in System Settings while Clide insists it is off.
-///
-/// So the flag is only the fast path. When it says no, Clide *tries an
-/// Accessibility call* and looks at the error: anything other than
-/// `kAXErrorAPIDisabled` means the API is answering us, which is the thing the
-/// permission actually governs. Asking by doing cannot go stale.
+/// Use Apple's trust result directly. Inferring trust from any other AX error
+/// produced false positives after a code-signing identity changed: the UI said
+/// Granted while macOS still discarded Clide's synthetic events.
 pub fn is_process_trusted() -> bool {
-    if unsafe { AXIsProcessTrusted() != 0 } {
-        return true;
-    }
-    accessibility_api_responds()
-}
-
-/// Probe the Accessibility API and report whether it answered at all.
-///
-/// The *value* is irrelevant — "nothing is focused" is a perfectly good answer
-/// from a trusted process. Only `kAXErrorAPIDisabled` means untrusted.
-fn accessibility_api_responds() -> bool {
-    unsafe {
-        let system = AXUIElementCreateSystemWide();
-        if system.is_null() {
-            return false;
-        }
-
-        let attribute = CFString::from_static_string("AXFocusedApplication");
-        let mut value: CFTypeRef = std::ptr::null();
-        let status =
-            AXUIElementCopyAttributeValue(system, attribute.as_concrete_TypeRef(), &mut value);
-
-        if !value.is_null() {
-            CFRelease(value);
-        }
-        CFRelease(system as CFTypeRef);
-
-        status != kAXErrorAPIDisabled
-    }
+    unsafe { AXIsProcessTrusted() != 0 }
 }
 
 /// Ask macOS to show its "allow Accessibility" dialog.

@@ -6,7 +6,7 @@
 //! 2. **Accessibility** — write into the control that was focused when
 //!    dictation began.
 //! 3. **Clipboard paste** — when a control refuses direct Accessibility writes
-//!    (common in web views), send Cmd+V directly to the captured app process.
+//!    (common in web views), send Cmd+V through macOS's HID event stream.
 //!
 //! If both fail the transcript is *still* left on the clipboard, because a
 //! transcript that reached this point is a success that insertion must not be
@@ -66,7 +66,7 @@ pub fn insert(text: &str, target: &FocusTarget) -> Result<InsertionMethod, Inser
         Err(reason) => tracing::debug!(reason, "accessibility insertion declined; pasting"),
     }
 
-    match insert_via_paste(text, target.pid) {
+    match insert_via_paste(text) {
         Ok(()) => Ok(InsertionMethod::ClipboardPaste),
         Err(reason) => Err(InsertionFailure {
             message: reason,
@@ -78,17 +78,19 @@ pub fn insert(text: &str, target: &FocusTarget) -> Result<InsertionMethod, Inser
 /// Write into the focused control's selection, which is what "type at the
 /// caret" means in Accessibility terms.
 fn insert_via_accessibility(text: &str, target: &FocusTarget) -> Result<(), String> {
-    let root = match target.pid {
-        Some(pid) => ax::AXElement::application(pid).ok_or_else(|| {
-            "the target application's Accessibility element is unavailable".to_string()
-        })?,
-        None => ax::AXElement::system_wide()
-            .ok_or_else(|| "the Accessibility system element is unavailable".to_string())?,
-    };
-
-    let focused = root
-        .element_attribute(ax::ATTR_FOCUSED_UI_ELEMENT)
-        .ok_or_else(|| "nothing is focused to type into".to_string())?;
+    // The system-wide AX root is macOS's canonical source for the actual caret.
+    // Prefer it while the same process still owns focus; fall back to the app
+    // root if focus briefly moved during finalization.
+    let focused = ax::AXElement::system_wide()
+        .and_then(|root| root.element_attribute(ax::ATTR_FOCUSED_UI_ELEMENT))
+        .filter(|element| target.pid.is_none() || element.pid() == target.pid)
+        .or_else(|| {
+            target.pid.and_then(|pid| {
+                ax::AXElement::application(pid)
+                    .and_then(|root| root.element_attribute(ax::ATTR_FOCUSED_UI_ELEMENT))
+            })
+        })
+        .ok_or_else(|| "nothing is focused to type into in the target application".to_string())?;
 
     // Read-only controls (web views, labels, canvas-based editors) report the
     // attribute but refuse writes. Asking first avoids a silent no-op.
@@ -104,13 +106,18 @@ fn insert_via_accessibility(text: &str, target: &FocusTarget) -> Result<(), Stri
 /// Put the transcript on the clipboard and send a targeted paste. It stays on
 /// the clipboard afterward by design, so slow web views can consume it on
 /// their own schedule and the user can paste it manually if needed.
-fn insert_via_paste(text: &str, target_pid: Option<i32>) -> Result<(), String> {
+fn insert_via_paste(text: &str) -> Result<(), String> {
     clipboard::access(|pasteboard| {
         if !pasteboard.set_text(text) {
             return Err("the clipboard could not be written".into());
         }
 
-        clipboard::send_paste_keystroke(target_pid)
+        if pasteboard.text().as_deref() != Some(text) {
+            return Err("the clipboard did not retain the complete transcript".into());
+        }
+
+        clipboard::wait_until_pasteboard_is_ready();
+        clipboard::send_paste_keystroke()
     })
 }
 
@@ -128,12 +135,35 @@ mod tests {
     /// whatever is focused and needs Accessibility access.
     ///
     /// Run with: `cargo test -- --ignored insertion_reaches_the_focused_app`
-    /// after focusing TextEdit.
+    /// after focusing TextEdit. Set `CLIDE_INSERT_TEST_PID` to exercise direct
+    /// Accessibility insertion against a specific editor process.
     #[test]
     #[ignore = "types into the focused application; run manually"]
     fn insertion_reaches_the_focused_app() {
-        let target = focus::frontmost();
-        let method = insert("Clide insertion test.", &target).expect("insertion failed");
+        let target = std::env::var("CLIDE_INSERT_TEST_PID")
+            .ok()
+            .and_then(|pid| pid.parse::<i32>().ok())
+            .map(|pid| FocusTarget {
+                app_name: Some("integration target".into()),
+                bundle_id: None,
+                pid: Some(pid),
+            })
+            .unwrap_or_else(focus::frontmost);
+        let text = std::env::var("CLIDE_INSERT_TEST_TEXT")
+            .unwrap_or_else(|_| "Clide insertion test.".into());
+        let method = insert(&text, &target).expect("insertion failed");
         eprintln!("inserted into {} via {:?}", target.label(), method);
+    }
+
+    /// Exercises the WebKit-compatible fallback directly. The target editor
+    /// must be frontmost because HID events follow the real keyboard focus.
+    #[test]
+    #[ignore = "pastes into the frontmost application; run manually"]
+    fn clipboard_paste_reaches_the_focused_app() {
+        assert!(ax::is_process_trusted(), "Accessibility is not available");
+        let text = std::env::var("CLIDE_INSERT_TEST_TEXT")
+            .unwrap_or_else(|_| "Clide clipboard paste test.".into());
+        insert_via_paste(&text).expect("clipboard paste failed");
+        assert_eq!(clipboard::text().as_deref(), Some(text.as_str()));
     }
 }

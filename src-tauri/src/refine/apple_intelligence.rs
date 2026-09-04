@@ -79,8 +79,9 @@ impl Refiner for AppleIntelligenceRefiner {
         let session = LanguageModelSession::with_instructions(request.style.instruction());
         let session = AsyncSession::new(&session);
 
+        let prompt = request.prompt();
         let response = session
-            .respond(request.text.as_str())
+            .respond(prompt.as_str())
             .map_err(|error| RefineError::Failed {
                 engine: ENGINE_ID,
                 detail: error.to_string(),

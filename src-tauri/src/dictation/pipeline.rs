@@ -21,7 +21,7 @@ use crate::hud;
 use crate::insertion;
 use crate::processing;
 use crate::providers::{AudioClip, TranscriptionRequest};
-use crate::refine::{RefineRequest, RefineStyle};
+use crate::refine::{accepts_refinement, RefineRequest, RefineStyle};
 use crate::state::AppState;
 
 /// How often the HUD waveform is refreshed. 30 Hz is smooth to the eye and
@@ -413,9 +413,18 @@ async fn refine_text(app: &AppHandle, text: String, style: RefineStyle) -> Strin
         })
         .await
     {
-        Ok(refined) => {
+        Ok(refined) if accepts_refinement(&text, &refined) => {
             tracing::info!(engine = refiner.id(), "transcript refined");
             refined
+        }
+        Ok(refined) => {
+            tracing::warn!(
+                engine = refiner.id(),
+                original_words = text.split_whitespace().count(),
+                refined_words = refined.split_whitespace().count(),
+                "refinement looked lossy or wrapped; keeping the transcript"
+            );
+            text
         }
         Err(error) => {
             tracing::warn!(engine = refiner.id(), %error, "refinement failed; keeping the transcript");
