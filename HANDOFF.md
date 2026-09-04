@@ -13,7 +13,7 @@ https://clide.staraep.fun.
 Read `blueprint.md` (product truth) and `AGENTS.md` (engineering rules) first —
 this file only records *state of the build*, never product decisions.
 
-**Last updated:** 2026-09-03, model/insertion upgrade and public website release.
+**Last updated:** 2026-09-04, lossless rewrite, insertion, update-check, and signed v0.1.1 release.
 
 > Update this file at every milestone, not at the end of a session. The user
 > asked for this explicitly and repeatedly. A milestone is: a decision made, a
@@ -30,45 +30,46 @@ has been observed running with **Parakeet CTC entirely on-device** as well as
 with Groq (345–388 ms). The user dictates into other apps with it.
 
 ```
-cargo test    183 passed, 1 ignored     (the ignored one types into a real app)
+cargo test    188 passed, 2 ignored     (the ignored tests type into real apps)
 cargo clippy  clean with -D warnings
 tsc / vite    clean
 ```
 
 ## Current distribution state
 
-The website repository was updated and pushed at commit `2a23b63`. Vercel
-reported the deployment successful, and https://clide.staraep.fun now serves
-the current 36-model/eight-engine product copy. Desktop and 390 px browser QA
-passed with no horizontal overflow or console errors.
+Version **0.1.1** is published from app commit `f639176` at
+https://github.com/staraepp/clide_stt/releases/tag/v0.1.1. The `.app` and DMG
+are signed with the installed Apple Development certificate, both pass
+`codesign --verify`, and the DMG passes `hdiutil verify`. They are not Developer
+ID signed or notarized, so public Gatekeeper approval remains unavailable on
+this Mac. The website is deployed from commit `4297430`.
 
 Every Download button now serves the DMG directly from:
 
 ```
-https://clide.staraep.fun/downloads/clide-0.1.0-apple-silicon.dmg
+https://clide.staraep.fun/downloads/clide-0.1.1-apple-silicon.dmg
 ```
 
-The public endpoint returns the expected 13,881,429-byte Apple disk image. Its
-SHA-256 is:
+The release artifact is 13,904,340 bytes. Its SHA-256 is:
 
 ```
-ceffbbfe7a854bc9eccee0f27c63b7f7b4624f060042eae156124e0add4898b1
+c16e94d33f59aba76b8e4c1b6b2911f1494d3166934d59cdf7e10d8b7fbdfb22
 ```
 
-The fresh release bundle passed `hdiutil verify` and strict deep code-signature
-verification. It is still **ad-hoc signed and not notarized**; the website says
-this plainly because Gatekeeper can warn. The single highest-value release task
-left is a Developer ID signature plus Apple notarization. A GitHub Release is
-optional now rather than a broken dependency because downloads are hosted by
-the website itself.
+The live website download and the GitHub Release asset both return those exact
+bytes. The About panel now embeds `f639176`; `build.rs` watches the resolved Git
+branch ref as well as `.git/HEAD`, preventing stale build metadata after commits.
 
-The ignored UI insertion harness was also attempted. Codex/macOS notifications
-kept stealing the frontmost-app slot (the harness captured
-`UserNotificationCenter` and then Clide instead of TextEdit), so that run is
-inconclusive and must not be cited as a real TextEdit proof. The normal suite,
-clipboard guarantee, and captured-process routing tests/builds are green; do a
-fresh physical dictation smoke test in TextEdit or Notes after installing the
-new bundle.
+Clide checks GitHub Releases at launch at most once per 24 hours, caches the
+latest successful result in SQLite, and exposes a manual Check now button in
+About. This is update awareness, not silent installation: Tauri auto-install
+requires a separate updater signing key plus a Developer ID/notarized release.
+
+The installed final signed build correctly reports **Accessibility: Not
+granted**. The old functional probe was a false positive and is gone. A human
+must toggle Clide once in System Settings for the new signed identity before the
+real TextEdit/browser insertion smoke tests can be completed. Do not cite the
+pre-signing UI probes as proof: macOS discarded their synthetic events.
 
 ---
 
@@ -100,11 +101,13 @@ Successful dictation now copies the transcript to the clipboard and deliberately
 leaves it there. The fallback no longer restores old clipboard contents after
 280 ms, which could race slow web/Electron inputs and report Done before they
 consumed the paste. `FocusTarget` captures the original process id; Accessibility
-writes query that app directly and fallback Cmd+V events are posted to that pid,
-so the transcript still targets the application where dictation began.
+writes prefer the system-wide focused element while verifying its process id,
+then fall back to the captured app root. Clipboard fallback waits 50 ms for the
+pasteboard and posts paced Cmd+V events to the global HID stream; process-targeted
+key events were removed because AppKit/WebKit route paste through the key window.
 
 Verification after this upgrade: frontend TypeScript/Vite build clean; full
-Rust suite **183 passed / 1 ignored**; clippy clean with `-D warnings`; all 33
+Rust suite **188 passed / 2 ignored**; clippy clean with `-D warnings`; all 33
 Whisper artifact URLs and byte lengths match the live canonical repository.
 
 ### Icon
@@ -198,42 +201,26 @@ constants. The aurora and voice-presence code are independent and stay.
 `Ribbon.tsx` took a `behavior` prop and now says "Hold" or "Press" to match the
 card beneath it.
 
-## THE ACCESSIBILITY BUG — FIXED (2026-09-03)
+## ACCESSIBILITY + SIGNING CORRECTION (2026-09-04)
 
-**Verified working**: the Setup card now reads "Accessibility · Granted" on a
-machine where it previously insisted otherwise.
+The earlier functional permission probe was wrong: any AX error other than
+`kAXErrorAPIDisabled` was treated as proof of trust. That produced a visible
+"Granted" state while macOS still discarded synthetic events. Clide now uses
+Apple's `AXIsProcessTrusted()` result directly and never claims success based on
+an unrelated AX error.
 
-`AXIsProcessTrusted()` resolves once and can then stay **stale for the lifetime
-of the process**. Granting Accessibility while Clide is running — exactly what
-onboarding asks people to do — left it reporting `false` until relaunch.
+The v0.1.1 `.app` and DMG are certificate-signed with `Apple Development: breno
+menezes (SZY5666BHV)`; hard-coded ad-hoc signing was removed from
+`tauri.conf.json`. `codesign --verify --deep --strict` passes and the app carries
+the hardened-runtime flag. This provides a stable development identity, but it
+does **not** provide public Gatekeeper trust or notarization. That still requires
+an installed Developer ID Application certificate and Apple notarization
+credentials.
 
-`ax::is_process_trusted()` now treats the flag as a fast path only. When it
-says no, Clide *makes an Accessibility call* and looks at the error: anything
-other than `kAXErrorAPIDisabled` means the API is answering us, which is the
-thing the permission actually governs. **Asking by doing cannot go stale.**
-Do not "simplify" this back to the bare flag.
-
-The ad-hoc signing story below is still true and still worth fixing, but it was
-not what this bug was.
-
-### Secondary: ad-hoc signing (still open, lower priority)
-
-macOS keys the Accessibility grant to the app's **code signature**, not its
-path. A properly signed app's designated requirement names its certificate and
-survives rebuilds. An **ad-hoc** signature has no certificate, so the
-requirement names the binary's `cdhash` — which changes on every single
-rebuild. System Settings lists clide by path with the switch on;
-`AXIsProcessTrusted()` returns false because this binary is not the one that
-was granted.
-
-`permissions/signing.rs` detects it (`codesign -dv` on the running executable,
-cached), `SystemStatus` carries `ad_hoc_build`, and the Setup card explains it
-instead of prompting again — a prompt cannot fix this.
-
-**The actual cure is a stable signing identity.** A Developer ID, or even a
-self-signed certificate used consistently, gives a designated requirement that
-survives rebuilds and the grant stops evaporating. Until then, the workaround
-is: remove clide from Accessibility, then add it back, after each rebuild.
+Signing changed the app identity from the old ad-hoc build, so Accessibility
+must be granted once more. The final signed build currently reports Not granted;
+the real TextEdit/browser insertion proof remains blocked only on that user
+security toggle.
 
 ## TWO REAL BUGS (2026-09-03)
 
@@ -1270,13 +1257,12 @@ It is present in the built CSS and does nothing; only the native overlay strip
 was draggable, so the window felt stuck. The title bar uses
 **`data-tauri-drag-region`** instead. Do not "simplify" it back.
 
-### `AXIsProcessTrusted()` goes stale
+### Never infer Accessibility trust from a generic AX call
 
-It resolves once and can stay stale for the life of the process, so granting
-Accessibility *while Clide is running* left it reporting `false` until
-relaunch — which is exactly what onboarding asks people to do.
-`ax::is_process_trusted()` now falls through to a **functional probe**: make an
-AX call and check for `kAXErrorAPIDisabled`. Asking by doing cannot go stale.
+The old probe treated any error other than `kAXErrorAPIDisabled` as proof of
+trust. That is false: a different AX failure can occur while macOS still drops
+synthetic input. Use `AXIsProcessTrusted()` directly and relaunch after changing
+the permission if macOS does not refresh it immediately.
 
 ### `reqwest`'s `timeout` covers the response body
 
@@ -1297,16 +1283,13 @@ and no cause. `build.rs::link_swift_runtime()` adds it. Do not remove it.
 
 Not `bundle.dmg`. The error message does not say so.
 
-### Ad-hoc signing loses the Accessibility grant every rebuild
+### The build is development-signed, not Developer ID-notarized
 
-macOS keys the grant to the code signature. An ad-hoc signature has no
-certificate, so the requirement names the binary's `cdhash`, which changes on
-every build. System Settings still shows the switch on — it is keyed by path —
-while the API says no. `permissions/signing.rs` detects this and the Setup card
-explains it, because a prompt cannot fix it.
-
-**The cure is a stable signing identity**, and it is the highest-value
-remaining task: it fixes this *and* Gatekeeper on the DMG.
+macOS keys the grant to code identity. v0.1.1 is signed with the available Apple
+Development certificate, which is stable enough for local permission testing.
+It still fails `spctl` public assessment because only Developer ID signing plus
+notarization removes the public Gatekeeper warning. Do not call the current DMG
+notarized or generally trusted.
 
 ### `app_screenshot` returns a blank window for this app
 
