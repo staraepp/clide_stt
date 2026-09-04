@@ -1370,7 +1370,25 @@ focused" no matter what the code does. That is why the chord's *shape* is
 extracted into `paste_chord()` and unit-tested instead. Verify behaviour by
 running the bundled app and dictating.
 
-### SHIPPING BLOCKER — the DMG needs Xcode to launch
+### RESOLVED — the DMG does *not* need Xcode (I was wrong)
+
+I raised this as a shipping blocker. **It is not one.** Verified by downloading
+the published `v0.1.2` DMG and inspecting the binary inside it:
+
+```
+otool -L  ->  /usr/lib/swift/libswift_Concurrency.dylib   (absolute)
+otool -l  ->  LC_RPATH: /Applications/Xcode.app/...       (present, unused)
+```
+
+The dependency resolves **absolutely**, from the dyld shared cache, which
+exists on every macOS 26 machine. The Xcode rpath is baked in but never
+consulted. A plain `cargo build --release` binary *does* emit `@rpath/...` —
+that is what misled me — but the **bundled** app does not.
+
+Do not spend time "fixing" this. If it is ever revisited, verify against the
+bundled app in the DMG, never a bare cargo build.
+
+### Historical note — the rpath is still required at build time
 
 **Measured, not assumed.** The release binary links
 `@rpath/libswift_Concurrency.dylib`, and the only rpath is
