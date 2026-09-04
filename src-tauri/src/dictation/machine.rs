@@ -29,6 +29,9 @@ pub enum FailureStage {
 pub enum InsertionMethod {
     /// Written straight into the focused control via the Accessibility API.
     Accessibility,
+    /// Typed in as Unicode keystrokes. Reaches apps that refuse both direct
+    /// Accessibility writes and synthetic paste chords.
+    Typed,
     /// Placed on the clipboard and pasted with a synthetic Cmd+V.
     ClipboardPaste,
 }

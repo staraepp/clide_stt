@@ -32,6 +32,9 @@ const KEY_EVENT_DELAY: Duration = Duration::from_millis(12);
 /// How long to let the user finish releasing a hold-to-talk shortcut.
 const MODIFIER_RELEASE_TIMEOUT: Duration = Duration::from_millis(600);
 const MODIFIER_POLL_INTERVAL: Duration = Duration::from_millis(15);
+/// A single event carrying a very long string is truncated by some editors.
+const TYPING_CHUNK_CHARS: usize = 20;
+const TYPING_CHUNK_DELAY: Duration = Duration::from_millis(4);
 
 static PASTEBOARD: Mutex<()> = Mutex::new(());
 
@@ -286,11 +289,13 @@ const CONTAMINATING_MODIFIERS: u64 = FLAG_SHIFT | FLAG_CONTROL | FLAG_OPTION | F
 /// Command — the paste is still attempted rather than silently dropped. Late is
 /// better than never, and the transcript is on the clipboard either way.
 fn wait_for_modifiers_to_clear() {
-    const COMBINED_SESSION_STATE: u32 = 1;
+    // 1 is HIDSystemState — the physical keyboard. (CombinedSessionState is 0
+    // and includes synthetic events, including our own.)
+    const HID_SYSTEM_STATE: u32 = 1;
     let deadline = std::time::Instant::now() + MODIFIER_RELEASE_TIMEOUT;
 
     while std::time::Instant::now() < deadline {
-        let held = unsafe { CGEventSourceFlagsState(COMBINED_SESSION_STATE) };
+        let held = unsafe { CGEventSourceFlagsState(HID_SYSTEM_STATE) };
         if held & CONTAMINATING_MODIFIERS == 0 {
             return;
         }
@@ -298,6 +303,56 @@ fn wait_for_modifiers_to_clear() {
     }
 
     tracing::debug!("pasting while a modifier is still held; the shortcut may be stuck down");
+}
+
+/// Type `text` directly, as though the user had entered it.
+///
+/// # Why this exists alongside paste
+///
+/// Cmd+V is a *command*: the target app has to recognise the chord, route it
+/// through its menu system, and choose to read the pasteboard. Electron and
+/// Chromium apps do that on their own terms and reject synthetic chords that
+/// do not match what they expect — which is why paste worked in AppKit fields
+/// and silently did nothing in the Claude app.
+///
+/// Unicode typing skips all of it. `CGEventKeyboardSetUnicodeString` attaches
+/// the text to a keystroke that carries no keycode and no modifiers, so the
+/// app receives it as ordinary text input. There is no chord to reject.
+///
+/// Sent in chunks because a single event carrying a very long string is
+/// truncated by some editors.
+pub fn type_text(text: &str) -> Result<(), String> {
+    if text.is_empty() {
+        return Ok(());
+    }
+
+    // The same contamination that broke paste would attach live modifiers to
+    // these keystrokes and turn typed characters into shortcuts.
+    wait_for_modifiers_to_clear();
+
+    let source = CGEventSource::new(CGEventSourceStateID::HIDSystemState)
+        .map_err(|_| "could not create a keyboard event source".to_string())?;
+
+    let characters: Vec<char> = text.chars().collect();
+
+    for chunk in characters.chunks(TYPING_CHUNK_CHARS) {
+        let piece: String = chunk.iter().collect();
+        let utf16: Vec<u16> = piece.encode_utf16().collect();
+
+        for down in [true, false] {
+            // Keycode 0 with an attached string: the text is the payload, not
+            // the key. Flags are cleared so nothing reads as a shortcut.
+            let event = CGEvent::new_keyboard_event(source.clone(), 0, down)
+                .map_err(|_| "could not create the typing event".to_string())?;
+            event.set_flags(CGEventFlags::CGEventFlagNull);
+            event.set_string_from_utf16_unchecked(&utf16);
+            event.post(CGEventTapLocation::HID);
+        }
+
+        thread::sleep(TYPING_CHUNK_DELAY);
+    }
+
+    Ok(())
 }
 
 /// Give AppKit/WebKit time to observe the new pasteboard change count before
@@ -320,6 +375,30 @@ mod tests {
     /// modifier by the time the V arrived, so they saw a bare "v" and ignored
     /// it — while AppKit fields, which read the flag straight off the event,
     /// worked fine. Hence "pastes into Firefox's search but not this input".
+    /// Transcripts routinely exceed one chunk, and chunking must not lose or
+    /// reorder anything — including multi-byte characters, where a naive
+    /// byte-split would corrupt the text.
+    #[test]
+    fn chunking_preserves_the_text_exactly() {
+        for text in [
+            "short",
+            "a transcript long enough to span several chunks of twenty characters",
+            "unicode survives: café — naïve — 日本語 — 🎙️ emoji",
+        ] {
+            let characters: Vec<char> = text.chars().collect();
+            let rejoined: String = characters
+                .chunks(TYPING_CHUNK_CHARS)
+                .flat_map(|chunk| chunk.iter())
+                .collect();
+            assert_eq!(rejoined, text, "chunking altered the text");
+        }
+    }
+
+    #[test]
+    fn typing_nothing_is_a_no_op_rather_than_an_error() {
+        assert!(type_text("").is_ok());
+    }
+
     #[test]
     fn the_paste_chord_never_synthesizes_the_command_key() {
         const KEY_COMMAND: u16 = 0x37;

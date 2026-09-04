@@ -5,8 +5,10 @@
 //! 1. **Clipboard** — every completed transcript is copied and remains there.
 //! 2. **Accessibility** — write into the control that was focused when
 //!    dictation began.
-//! 3. **Clipboard paste** — when a control refuses direct Accessibility writes
-//!    (common in web views), send Cmd+V through macOS's HID event stream.
+//! 3. **Typing** — when a control refuses direct Accessibility writes (common
+//!    in web views), send the text itself as Unicode keystrokes.
+//! 4. **Clipboard paste** — last resort, for anything that ignores synthetic
+//!    typing but honours a paste chord.
 //!
 //! If both fail the transcript is *still* left on the clipboard, because a
 //! transcript that reached this point is a success that insertion must not be
@@ -61,9 +63,28 @@ pub fn insert(text: &str, target: &FocusTarget) -> Result<InsertionMethod, Inser
         });
     }
 
+    // Log where the text is actually going. When insertion silently misses,
+    // the first question is always "was the intended app still frontmost?".
+    tracing::debug!(
+        target_app = target.app_name.as_deref().unwrap_or("unknown"),
+        target_pid = target.pid,
+        frontmost = focus::frontmost().app_name.as_deref().unwrap_or("unknown"),
+        "inserting"
+    );
+
     match insert_via_accessibility(text, target) {
         Ok(()) => return Ok(InsertionMethod::Accessibility),
-        Err(reason) => tracing::debug!(reason, "accessibility insertion declined; pasting"),
+        Err(reason) => tracing::debug!(reason, "accessibility insertion declined; typing"),
+    }
+
+    // Typing before pasting. Cmd+V is a *command* the target app has to
+    // recognise and act on, and Electron/Chromium apps reject synthetic chords
+    // that do not match what they expect — the Claude app took neither the
+    // Accessibility write nor the paste. Unicode keystrokes carry the text
+    // itself, so there is no chord to refuse.
+    match clipboard::type_text(text) {
+        Ok(()) => return Ok(InsertionMethod::Typed),
+        Err(reason) => tracing::debug!(reason, "typing failed; falling back to paste"),
     }
 
     match insert_via_paste(text) {

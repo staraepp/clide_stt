@@ -59,6 +59,7 @@ pub async fn test_insertion() -> Result<String, String> {
         .map_err(|failure| failure.message)?;
     let method = match method {
         crate::dictation::machine::InsertionMethod::Accessibility => "Accessibility",
+        crate::dictation::machine::InsertionMethod::Typed => "typing",
         crate::dictation::machine::InsertionMethod::ClipboardPaste => "clipboard paste",
     };
     Ok(format!("{label} via {method}"))

@@ -1272,7 +1272,31 @@ downloading", so every model download died mid-stream with an opaque
 timeout**, bounded by `connect_timeout` and `read_timeout` instead. **Never add
 `.timeout()` to that client.**
 
-### Paste reached some inputs and not others
+### Insertion: paste is now the LAST resort, not the first fallback
+
+The Claude app took neither the Accessibility write nor a synthetic paste. The
+order is now:
+
+1. Accessibility write (native fields)
+2. **Unicode typing** — `clipboard::type_text`
+3. Clipboard paste (last resort)
+
+**Why typing works where paste does not.** Cmd+V is a *command*: the target app
+must recognise the chord, route it through its menu system, and choose to read
+the pasteboard. Electron/Chromium decide that on their own terms and reject
+synthetic chords that do not match what they expect.
+`CGEventKeyboardSetUnicodeString` attaches the text to a keystroke with no
+keycode and no modifiers, so the app receives ordinary text input — there is no
+chord left to refuse.
+
+Chunked at 20 **characters** (never bytes — a byte split would corrupt
+multi-byte text; there is a test).
+
+`insert()` also now logs the intended target app alongside the actual frontmost
+app, because when insertion silently misses, the first question is always
+whether the right app was still in front.
+
+### Earlier fix, kept: paste reached some inputs and not others
 
 Reported as: pastes into Firefox's search field, does nothing in a
 Chromium-based text input. Two causes, both in `send_paste_keystroke`:
