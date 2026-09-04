@@ -34,7 +34,7 @@ export function ProviderSettings({ onChange }: { onChange: () => void }) {
   }, []);
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
       {providers.map((provider) => {
         const status = statuses.find((entry) => entry.id === provider.id);
         return (

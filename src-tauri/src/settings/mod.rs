@@ -43,6 +43,7 @@ mod keys {
     pub const ONBOARDING: &str = "onboarding.complete";
     pub const FALLBACK: &str = "dictation.fallback";
     pub const REFINE_STYLE: &str = "processing.refine_style";
+    pub const REFINE_ENGINES: &str = "processing.refine_engines";
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -64,6 +65,10 @@ pub struct AppSettings {
     pub fallback: FallbackPolicy,
     /// How far Rewrite may go. Only consulted in Rewrite mode.
     pub refine_style: RefineStyle,
+    /// Refinement engines the user has explicitly switched on, in the order
+    /// they should be tried. Empty means Rewrite falls back to the polished
+    /// transcript — never that clide picks an engine on their behalf.
+    pub refine_engines: Vec<String>,
     pub onboarding_complete: bool,
 }
 
@@ -80,6 +85,9 @@ impl AppSettings {
             visual_intensity: VisualIntensity::Normal,
             fallback: FallbackPolicy::default(),
             refine_style: RefineStyle::default(),
+            // Only the on-device engine by default. A cloud refiner sends the
+            // transcript to a third party, which is the user's call to make.
+            refine_engines: vec!["apple-intelligence".to_string()],
             onboarding_complete: false,
         }
     }
@@ -124,6 +132,10 @@ pub fn load(connection: &Connection, provider_id: &str, model_id: &str) -> AppSe
             .ok()
             .flatten()
             .unwrap_or(defaults.refine_style),
+        refine_engines: kv::get(connection, keys::REFINE_ENGINES)
+            .ok()
+            .flatten()
+            .unwrap_or(defaults.refine_engines),
         visual_intensity: kv::get(connection, keys::INTENSITY)
             .ok()
             .flatten()
@@ -145,6 +157,7 @@ pub fn save(connection: &Connection, settings: &AppSettings) -> rusqlite::Result
     kv::set(connection, keys::INTENSITY, &settings.visual_intensity)?;
     kv::set(connection, keys::FALLBACK, &settings.fallback)?;
     kv::set(connection, keys::REFINE_STYLE, &settings.refine_style)?;
+    kv::set(connection, keys::REFINE_ENGINES, &settings.refine_engines)?;
     kv::set(connection, keys::ONBOARDING, &settings.onboarding_complete)?;
     Ok(())
 }

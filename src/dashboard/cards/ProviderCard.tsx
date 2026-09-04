@@ -23,7 +23,7 @@ export function ProviderCard({
         label="Engine"
         action={
           <Button size="sm" variant="ghost" onClick={onConfigure}>
-            Change
+            Change engine
             <ArrowUpRight size={12} />
           </Button>
         }

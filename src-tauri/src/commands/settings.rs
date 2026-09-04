@@ -265,3 +265,26 @@ mod credential_status_tests {
         }
     }
 }
+
+/// Switch a refinement engine on or off.
+///
+/// Explicit rather than automatic: enabling a cloud refiner means transcripts
+/// leave the Mac, and that is the user's decision to make and unmake.
+#[tauri::command]
+pub fn set_refine_engine_enabled(
+    app: AppHandle,
+    engine_id: String,
+    enabled: bool,
+) -> Result<(), String> {
+    let state = app.state::<AppState>();
+
+    state.update_settings(|settings| {
+        settings.refine_engines.retain(|id| id != &engine_id);
+        if enabled {
+            settings.refine_engines.push(engine_id.clone());
+        }
+    })?;
+
+    events::emit_bare(&app, events::SETTINGS_CHANGED);
+    Ok(())
+}

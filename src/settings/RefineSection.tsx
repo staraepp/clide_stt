@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
-import { Sparkles } from "lucide-react";
+import { Cloud, Cpu } from "lucide-react";
 
 import { Segmented } from "@/components/Segmented";
 import { StatusDot } from "@/components/StatusDot";
+import { Toggle } from "@/components/Toggle";
+import { cn } from "@/lib/cn";
 import * as commands from "@/lib/commands";
 import type { RefinerDescriptor, SystemStatus } from "@/lib/types";
 
@@ -27,7 +29,7 @@ export function RefineSection({
       .listRefiners()
       .then(setRefiners)
       .catch((error) => console.error("could not list refiners", error));
-  }, [status.settings.mode]);
+  }, [status.settings.mode, status.settings.refineEngines]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -53,31 +55,61 @@ export function RefineSection({
       />
 
       <ul className="grid gap-2 sm:grid-cols-2">
-        {refiners.map((refiner) => (
-          <li
-            key={refiner.id}
-            className="flex flex-col gap-2 rounded-ctl border border-line bg-card px-3 py-3"
-          >
-            <span className="flex items-center gap-2">
-              <Sparkles size={13} className="shrink-0 text-ink-3" />
-              <span className="truncate text-[13px] text-ink">{refiner.name}</span>
-              <span className="ml-auto flex shrink-0 items-center gap-1.5">
-                <StatusDot tone={refiner.available ? "ready" : "pending"} />
+        {refiners.map((refiner) => {
+          const enabled = status.settings.refineEngines.includes(refiner.id);
+          return (
+            <li
+              key={refiner.id}
+              className={cn(
+                "flex flex-col gap-2 rounded-ctl border bg-card px-3 py-3 transition-colors",
+                enabled ? "border-voice bg-voice-tint/30" : "border-line",
+              )}
+            >
+              <span className="flex items-center gap-2">
+                {refiner.local ? (
+                  <Cpu size={13} className="shrink-0 text-ink-3" />
+                ) : (
+                  <Cloud size={13} className="shrink-0 text-ink-3" />
+                )}
+                <span className="truncate text-[13px] text-ink">{refiner.name}</span>
+                <Toggle
+                  checked={enabled}
+                  disabled={!refiner.available}
+                  label={`Use ${refiner.name} for Rewrite`}
+                  onChange={async (next) => {
+                    await commands.setRefineEngineEnabled(refiner.id, next);
+                    refresh();
+                  }}
+                />
+              </span>
+
+              <p className="text-[11.5px] leading-relaxed text-ink-3">
+                {refiner.available ? refiner.description : refiner.unavailableReason}
+              </p>
+
+              <span className="mt-auto flex items-center gap-1.5">
+                <StatusDot
+                  tone={!refiner.available ? "problem" : enabled ? "ready" : "idle"}
+                />
                 <span className="text-[11px] text-ink-3">
-                  {refiner.available ? "Ready" : "Off"}
+                  {!refiner.available
+                    ? "Unavailable"
+                    : enabled
+                      ? refiner.local
+                        ? "On · stays on this Mac"
+                        : "On · text leaves your Mac"
+                      : "Off"}
                 </span>
               </span>
-            </span>
-            <p className="text-[11.5px] leading-relaxed text-ink-3">
-              {refiner.available ? refiner.description : refiner.unavailableReason}
-            </p>
-          </li>
-        ))}
+            </li>
+          );
+        })}
       </ul>
 
       <p className="text-[12px] leading-relaxed text-ink-3">
-        If no engine is available, Rewrite still returns your polished
-        transcript — refinement never costs you your words.
+        Every engine is off until you switch it on. With none on, Rewrite still
+        returns your polished transcript — refinement never costs you your
+        words.
       </p>
     </div>
   );

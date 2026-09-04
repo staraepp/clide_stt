@@ -363,15 +363,15 @@ async fn process(app: &AppHandle, raw: String) -> Option<String> {
     events::emit_state(app, &next);
     events::emit_bare(app, events::PROCESSING_STARTED);
 
-    let (mode, style) = {
+    let (mode, style, engines) = {
         let settings = state.settings();
-        (settings.mode, settings.refine_style)
+        (settings.mode, settings.refine_style, settings.refine_engines)
     };
 
     match processing::process(mode, &raw) {
         Ok(text) => {
             let text = if mode == processing::ProcessingMode::Rewrite {
-                refine_text(app, text, style).await
+                refine_text(app, text, style, &engines).await
             } else {
                 text
             };
@@ -407,11 +407,16 @@ async fn process(app: &AppHandle, raw: String) -> Option<String> {
 /// Refinement is a nicety layered on words the user has already said. A model
 /// that is switched off, still downloading, or simply unhappy must never cost
 /// them the transcript — so every failure here logs and returns the input.
-async fn refine_text(app: &AppHandle, text: String, style: RefineStyle) -> String {
+async fn refine_text(
+    app: &AppHandle,
+    text: String,
+    style: RefineStyle,
+    engines: &[String],
+) -> String {
     let state = app.state::<AppState>();
 
-    let Some(refiner) = state.refiners.first_available() else {
-        tracing::debug!("rewrite requested but no refinement engine is available");
+    let Some(refiner) = state.refiners.first_enabled(engines) else {
+        tracing::debug!("rewrite requested but no enabled refinement engine can run");
         return text;
     };
 

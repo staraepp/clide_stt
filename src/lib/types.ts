@@ -53,6 +53,7 @@ export type RefineStyle = "tidy" | "written";
 export interface AppSettings {
   fallback: FallbackPolicy;
   refineStyle: RefineStyle;
+  refineEngines: string[];
   shortcut: string;
   behavior: DictationBehavior;
   mode: ProcessingMode;

@@ -49,6 +49,10 @@ impl AppState {
         recorder: Recorder,
         providers: ProviderRegistry,
     ) -> Self {
+        // Cloud refiners reuse the transcription credentials and client.
+        let http_for_refiners = http.clone();
+        let credentials_for_refiners = credentials.clone();
+
         let settings = {
             let default_provider = providers.default_provider();
             let connection = db.lock();
@@ -67,7 +71,7 @@ impl AppState {
             downloads,
             recorder,
             providers,
-            refiners: RefinerRegistry::new(),
+            refiners: RefinerRegistry::new(http_for_refiners, credentials_for_refiners),
             session: DictationSession::new(),
             settings: Mutex::new(settings),
             registered_shortcut: Mutex::new(None),

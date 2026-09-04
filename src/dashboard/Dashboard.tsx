@@ -21,7 +21,7 @@ export function Dashboard({
 }: {
   status: SystemStatus;
   refresh: () => void;
-  onNavigate: (view: "history" | "settings") => void;
+  onNavigate: (view: "models" | "history" | "settings") => void;
 }) {
   const state = useDictationState();
   const level = useMicLevel();
@@ -29,7 +29,7 @@ export function Dashboard({
   return (
     <div className="grid auto-rows-min grid-cols-12 gap-3 py-3">
       <DictationCard state={state} status={status} levelRef={level} />
-      <ProviderCard status={status} onConfigure={() => onNavigate("settings")} />
+      <ProviderCard status={status} onConfigure={() => onNavigate("models")} />
       <ModeCard mode={status.settings.mode} onChange={refresh} />
       <RecentCard onOpenHistory={() => onNavigate("history")} />
 

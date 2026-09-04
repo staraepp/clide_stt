@@ -166,3 +166,7 @@ export async function openUrl(url: string): Promise<void> {
 /** Apple Speech only. Separate from the microphone, even though it is on-device. */
 export const requestSpeechPermission = () =>
   invoke<PermissionStatus>("request_speech_permission");
+
+/** Switch a refinement engine on or off. Cloud engines send text off the Mac. */
+export const setRefineEngineEnabled = (engineId: string, enabled: boolean) =>
+  invoke<void>("set_refine_engine_enabled", { engineId, enabled });
