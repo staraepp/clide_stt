@@ -27,6 +27,8 @@ pub const ATTR_FOCUSED_APPLICATION: &str = "AXFocusedApplication";
 pub const ATTR_SELECTED_TEXT: &str = "AXSelectedText";
 pub const ATTR_TITLE: &str = "AXTitle";
 pub const ATTR_ROLE: &str = "AXRole";
+/// The control's text. Used to verify a paste actually landed.
+pub const ATTR_VALUE: &str = "AXValue";
 
 #[link(name = "ApplicationServices", kind = "framework")]
 extern "C" {

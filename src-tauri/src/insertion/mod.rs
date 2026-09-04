@@ -155,6 +155,44 @@ mod tests {
         eprintln!("inserted into {} via {:?}", target.label(), method);
     }
 
+    /// Verifies the paste **actually landed**, by reading the focused
+    /// control back through Accessibility rather than trusting that posting
+    /// the event succeeded. Posting always "succeeds"; that was the whole
+    /// problem.
+    ///
+    /// Run with TextEdit (or any AX-readable editor) focused and empty:
+    ///   `cargo test -- --ignored paste_lands_in_the_focused_control`
+    #[test]
+    #[ignore = "pastes into the frontmost application; run manually"]
+    fn paste_lands_in_the_focused_control() {
+        let marker = format!("clide-paste-{}", std::process::id());
+
+        clipboard::access(|pasteboard| {
+            assert!(pasteboard.set_text(&marker));
+            Ok::<(), String>(())
+        })
+        .unwrap();
+
+        clipboard::wait_until_pasteboard_is_ready();
+        clipboard::send_paste_keystroke().expect("posting the paste failed");
+
+        // Give the target a moment to process the keystroke.
+        std::thread::sleep(std::time::Duration::from_millis(400));
+
+        let focused = ax::AXElement::system_wide()
+            .and_then(|root| root.element_attribute(ax::ATTR_FOCUSED_UI_ELEMENT))
+            .expect("nothing is focused — focus a text editor before running this");
+
+        let value = focused
+            .string_attribute(ax::ATTR_VALUE)
+            .unwrap_or_default();
+
+        assert!(
+            value.contains(&marker),
+            "the paste did not reach the focused control. It contains: {value:?}"
+        );
+    }
+
     /// Exercises the WebKit-compatible fallback directly. The target editor
     /// must be frontmost because HID events follow the real keyboard focus.
     #[test]

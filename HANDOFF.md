@@ -1272,6 +1272,31 @@ downloading", so every model download died mid-stream with an opaque
 timeout**, bounded by `connect_timeout` and `read_timeout` instead. **Never add
 `.timeout()` to that client.**
 
+### Paste reached some inputs and not others
+
+Reported as: pastes into Firefox's search field, does nothing in a
+Chromium-based text input. Two causes, both in `send_paste_keystroke`:
+
+1. **It synthesized the Command *key*** (0x37) as its own down/up pair around
+   the V. Chromium tracks `flagsChanged` on a separate timeline and often had
+   not applied the modifier by the time the V landed, so it saw a bare "v".
+   AppKit fields read the flag straight off the event and never noticed — which
+   is exactly why it looked app-specific. Now only V is posted, with Command as
+   a flag.
+2. **The event source was `CombinedSessionState`**, which unions in the *real*
+   hardware modifier state. With a hold-to-talk shortcut like `Cmd+.` the user
+   is often still holding keys when the transcript lands, so the app received
+   `Cmd+Opt+V` or similar and ignored it. The source is now `Private`, and
+   `wait_for_modifiers_to_clear()` gives the keyboard up to 600 ms to settle —
+   bounded, so a genuinely stuck modifier degrades to a late paste, never none.
+
+**Testing note for whoever changes this next:** a `cargo test` binary is not
+the signed app, so it has **no Accessibility grant** — it cannot post events or
+read focus, and `paste_lands_in_the_focused_control` will fail with "nothing is
+focused" no matter what the code does. That is why the chord's *shape* is
+extracted into `paste_chord()` and unit-tested instead. Verify behaviour by
+running the bundled app and dictating.
+
 ### SHIPPING BLOCKER — the DMG needs Xcode to launch
 
 **Measured, not assumed.** The release binary links
