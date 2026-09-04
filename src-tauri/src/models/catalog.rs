@@ -433,6 +433,80 @@ pub fn catalog() -> Vec<CatalogEntry> {
             ],
         },
         CatalogEntry {
+            id: "parakeet-tdt-0.6b-v3-int8".into(),
+            name: "Parakeet TDT 0.6B (compressed)".into(),
+            engine: Engine::Parakeet,
+            arch: Some(ParakeetArch::Tdt),
+            description: "The same transducer at a quarter of the size. The best \
+                          Parakeet to start with."
+                .into(),
+            speed: SpeedClass::Fast,
+            quality: QualityClass::High,
+            multilingual: true,
+            // The quantised encoder is a single file — there is no companion
+            // `.data` blob, which is where most of the saving comes from.
+            files: vec![
+                tdt_file_as("encoder-model.onnx", "v3", "encoder-model.int8.onnx", 652_183_999),
+                tdt_file_as(
+                    "decoder_joint-model.onnx",
+                    "v3",
+                    "decoder_joint-model.int8.onnx",
+                    18_202_004,
+                ),
+                tdt_file_as("vocab.txt", "v3", "vocab.txt", 93_939),
+            ],
+        },
+        CatalogEntry {
+            id: "parakeet-tdt-0.6b-v2-int8".into(),
+            name: "Parakeet TDT 0.6B v2 (compressed)".into(),
+            engine: Engine::Parakeet,
+            arch: Some(ParakeetArch::Tdt),
+            description: "The English-focused generation, quantised. Very fast, and \
+                          strong on dictation."
+                .into(),
+            speed: SpeedClass::Fast,
+            quality: QualityClass::High,
+            multilingual: false,
+            files: vec![
+                tdt_file_as("encoder-model.onnx", "v2", "encoder-model.int8.onnx", 652_184_014),
+                tdt_file_as(
+                    "decoder_joint-model.onnx",
+                    "v2",
+                    "decoder_joint-model.int8.onnx",
+                    8_998_286,
+                ),
+                tdt_file_as("vocab.txt", "v2", "vocab.txt", 9_384),
+            ],
+        },
+        CatalogEntry {
+            id: "parakeet-tdt-0.6b-v2".into(),
+            name: "Parakeet TDT 0.6B v2".into(),
+            engine: Engine::Parakeet,
+            arch: Some(ParakeetArch::Tdt),
+            description: "Full-precision English transducer. Accurate on \
+                          conversational speech."
+                .into(),
+            speed: SpeedClass::Fast,
+            quality: QualityClass::VeryHigh,
+            multilingual: false,
+            files: vec![
+                tdt_file_as("encoder-model.onnx", "v2", "encoder-model.onnx", 41_770_866),
+                tdt_file_as(
+                    "encoder-model.onnx.data",
+                    "v2",
+                    "encoder-model.onnx.data",
+                    2_435_420_160,
+                ),
+                tdt_file_as(
+                    "decoder_joint-model.onnx",
+                    "v2",
+                    "decoder_joint-model.onnx",
+                    35_792_059,
+                ),
+                tdt_file_as("vocab.txt", "v2", "vocab.txt", 9_384),
+            ],
+        },
+        CatalogEntry {
             id: "parakeet-tdt-0.6b-v3".into(),
             name: "Parakeet TDT 0.6B".into(),
             engine: Engine::Parakeet,
@@ -527,10 +601,20 @@ fn whisper_entry(
 }
 
 fn tdt_file(name: &str, bytes: u64) -> ModelFile {
+    tdt_file_as(name, "v3", name, bytes)
+}
+
+/// A TDT artifact, stored under the name `ParakeetTDT::from_pretrained`
+/// expects.
+///
+/// `remote` differs from `name` for the quantised builds — they are published
+/// as `encoder-model.int8.onnx`, but the loader only looks for
+/// `encoder-model.onnx`.
+fn tdt_file_as(name: &str, generation: &str, remote: &str, bytes: u64) -> ModelFile {
     ModelFile {
         name: name.into(),
         url: format!(
-            "https://huggingface.co/istupakov/parakeet-tdt-0.6b-v3-onnx/resolve/main/{name}"
+            "https://huggingface.co/istupakov/parakeet-tdt-0.6b-{generation}-onnx/resolve/main/{remote}"
         ),
         bytes,
         sha256: None,
@@ -670,6 +754,56 @@ mod tests {
 
     /// The CTC repo nests weights under `onnx/` and suffixes quantised builds,
     /// but the loader wants fixed names — so these must differ.
+    /// The quantised TDT builds are published with an `.int8.` infix, but
+    /// `ParakeetTDT::from_pretrained` only looks for the plain names. If these
+    /// ever match, the loader will not find its weights.
+    #[test]
+    fn quantised_tdt_files_are_stored_under_the_plain_loader_names() {
+        let compressed = find("parakeet-tdt-0.6b-v3-int8").unwrap();
+
+        let names: Vec<&str> = compressed.files.iter().map(|f| f.name.as_str()).collect();
+        assert!(names.contains(&"encoder-model.onnx"));
+        assert!(names.contains(&"decoder_joint-model.onnx"));
+        assert!(names.iter().all(|n| !n.contains("int8")));
+
+        let encoder = compressed
+            .files
+            .iter()
+            .find(|f| f.name == "encoder-model.onnx")
+            .unwrap();
+        assert!(encoder.url.contains("encoder-model.int8.onnx"));
+
+        // The saving comes from the quantised encoder having no companion
+        // blob; if a `.data` file appears here the size claim is wrong.
+        assert!(
+            !names.contains(&"encoder-model.onnx.data"),
+            "the quantised build should not carry a weights blob"
+        );
+    }
+
+    /// v2 and v3 are different repositories. Mixing their artifacts would load
+    /// an encoder against the wrong vocabulary.
+    #[test]
+    fn each_parakeet_entry_draws_from_a_single_repository() {
+        for entry in catalog() {
+            if entry.engine != Engine::Parakeet {
+                continue;
+            }
+            let repos: std::collections::HashSet<&str> = entry
+                .files
+                .iter()
+                .map(|f| {
+                    f.url
+                        .trim_start_matches("https://huggingface.co/")
+                        .split("/resolve/")
+                        .next()
+                        .unwrap_or_default()
+                })
+                .collect();
+            assert_eq!(repos.len(), 1, "{} mixes repositories: {repos:?}", entry.id);
+        }
+    }
+
     #[test]
     fn ctc_files_are_stored_under_the_names_the_loader_expects() {
         let ctc = find("parakeet-ctc-0.6b-int8").unwrap();
