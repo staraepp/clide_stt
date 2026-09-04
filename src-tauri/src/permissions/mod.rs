@@ -98,6 +98,13 @@ pub fn repair_accessibility_access(bundle_identifier: &str) -> Result<Permission
         return Ok(PermissionStatus::Granted);
     }
 
+    // `tccutil reset SERVICE [BUNDLE_ID]` takes the bundle id *optionally*, and
+    // without one it resets Accessibility for **every app on the Mac**. So the
+    // identifier is validated before it can reach the command rather than
+    // trusted: a blank or malformed value must fail loudly here, never quietly
+    // widen the reset.
+    let bundle_identifier = validated_bundle_identifier(bundle_identifier)?;
+
     let output = accessibility_reset_command(bundle_identifier)
         .output()
         .map_err(|error| format!("Could not start macOS's permission repair: {error}"))?;
@@ -115,7 +122,45 @@ pub fn repair_accessibility_access(bundle_identifier: &str) -> Result<Permission
     // Re-register the current designated requirement. macOS displays its
     // normal consent prompt; Clide never edits TCC.db directly.
     ax::prompt_for_trust();
-    Ok(accessibility_status())
+
+    let status = accessibility_status();
+    if status.is_granted() {
+        return Ok(status);
+    }
+
+    // The grant that existed a moment ago is now gone, and macOS only shows its
+    // consent dialog once per app identity — so a silent failure here leaves
+    // the user worse off than before they asked for help. Put System Settings
+    // in front of them and say so plainly.
+    open_accessibility_settings();
+    Err(
+        "Clide's old Accessibility record was cleared, but macOS did not grant \
+         access again. Add Clide in System Settings — it has just been opened."
+            .into(),
+    )
+}
+
+/// Reject anything that is not a plausible bundle identifier.
+///
+/// The stakes are asymmetric: refusing a valid id costs one confusing error,
+/// while accepting an empty one would reset Accessibility for every
+/// application on the machine.
+fn validated_bundle_identifier(candidate: &str) -> Result<&str, String> {
+    let trimmed = candidate.trim();
+
+    let plausible = !trimmed.is_empty()
+        && trimmed.contains('.')
+        && !trimmed.starts_with('.')
+        && !trimmed.ends_with('.')
+        && trimmed
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_'));
+
+    if plausible {
+        Ok(trimmed)
+    } else {
+        Err("Clide could not identify itself to macOS, so no permission was reset.".into())
+    }
 }
 
 fn accessibility_reset_command(bundle_identifier: &str) -> std::process::Command {
@@ -173,6 +218,47 @@ mod tests {
         };
         assert!(mic_only.can_capture());
         assert!(!mic_only.can_insert());
+    }
+
+    /// `tccutil reset Accessibility` with no bundle id resets **every app on
+    /// the Mac**. Nothing that cannot be shown to be a real identifier may
+    /// reach that command.
+    #[test]
+    fn a_blank_or_malformed_identifier_never_reaches_tccutil() {
+        for candidate in [
+            "",
+            "   ",
+            "clide",          // no dot: tccutil would not match a bundle
+            ".com.staraep",   // leading dot
+            "com.staraep.",   // trailing dot
+            "com.staraep clide", // a space would split into a second argument
+            "com.staraep.clide; rm -rf /",
+        ] {
+            assert!(
+                validated_bundle_identifier(candidate).is_err(),
+                "{candidate:?} was accepted as a bundle identifier"
+            );
+        }
+    }
+
+    #[test]
+    fn a_real_identifier_is_accepted_and_trimmed() {
+        assert_eq!(
+            validated_bundle_identifier("  com.staraep.clide  ").unwrap(),
+            "com.staraep.clide"
+        );
+        assert!(validated_bundle_identifier("com.staraep.clide-dev").is_ok());
+    }
+
+    /// The whole point of validating: a reset must always carry a bundle id,
+    /// because the argument is optional to `tccutil` and omitting it is
+    /// catastrophic.
+    #[test]
+    fn the_reset_command_always_names_a_bundle() {
+        let command = accessibility_reset_command("com.example.clide");
+        let args: Vec<&OsStr> = command.get_args().collect();
+        assert_eq!(args.len(), 3, "a missing argument would widen the reset");
+        assert_eq!(args[2], OsStr::new("com.example.clide"));
     }
 
     #[test]

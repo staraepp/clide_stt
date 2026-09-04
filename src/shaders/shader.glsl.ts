@@ -178,10 +178,8 @@ void main() {
   float presence = smoothstep(0.0, 1.0, u_presence);
 
   // The resting field fades back as voice takes over, so the two never stack
-  // into mud. Weighted low toward the top of the window, where the bento cards
-  // sit, and allowed to open up across the empty lower canvas.
-  // Weighted toward the open lower canvas but no longer confined to it — the
-  // gutters between cards should carry the field too.
+  // into mud. Weighted toward the open lower canvas but not confined to it —
+  // the gutters between the bento cards should carry the field too.
   float lowerBias = 0.34 + 0.66 * smoothstep(1.05, -0.05, uv.y);
   float restingScale = 1.0 - presence * 0.62;
   float neutralWeight =

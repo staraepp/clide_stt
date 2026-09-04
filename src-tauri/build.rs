@@ -8,14 +8,21 @@ fn main() {
 /// Put the Swift back-deployment runtime on the link path.
 ///
 /// `foundation-models` compiles a small Swift shim to reach Apple
-/// Intelligence. That shim links `libswift_Concurrency.dylib`, which on this
-/// SDK lives only in the Xcode toolchain's back-deployment directory — not in
-/// `/usr/lib/swift` and not in the dyld cache. Without this rpath the binary
-/// builds fine and then aborts at launch with a dyld error.
+/// Intelligence. In a debug build that shim links
+/// `@rpath/libswift_Concurrency.dylib`, which on this SDK exists only in the
+/// Xcode toolchain's back-deployment directory. Without this rpath the binary
+/// links fine and then **aborts at launch** with a dyld error listing fifty
+/// paths and naming no cause.
 ///
-/// Resolved through `xcode-select` rather than hardcoded, so a different Xcode
-/// location still works. Missing entirely is not fatal: the linker error it
-/// would cause is clearer than anything printed here.
+/// Release builds resolve the same symbol to
+/// `/usr/lib/swift/libswift_Concurrency.dylib`, which ships in the dyld shared
+/// cache on every macOS 26 machine — so a *shipped* app never needs Xcode, and
+/// baking a developer's Xcode path into a distributed binary would be wrong.
+/// Hence the profile check.
+///
+/// Resolved through `xcode-select` rather than hardcoded, so a relocated Xcode
+/// still works. Missing entirely is not fatal: the linker error that follows is
+/// clearer than anything printed here.
 fn link_swift_runtime() {
     let Ok(output) = std::process::Command::new("xcode-select").arg("-p").output() else {
         return;

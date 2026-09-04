@@ -1272,6 +1272,28 @@ downloading", so every model download died mid-stream with an opaque
 timeout**, bounded by `connect_timeout` and `read_timeout` instead. **Never add
 `.timeout()` to that client.**
 
+### SHIPPING BLOCKER — the DMG needs Xcode to launch
+
+**Measured, not assumed.** The release binary links
+`@rpath/libswift_Concurrency.dylib`, and the only rpath is
+`/Applications/Xcode.app/.../swift-5.5/macosx`. On a Mac without Xcode at that
+exact path, **the app aborts at launch** — so the DMG cannot be handed to users
+as-is.
+
+Verified along the way:
+- `FoundationModels.framework` *is* weakly linked, so macOS 26 is not required
+  just to start. That part is fine.
+- Gating the rpath to debug builds does **not** work: a release build without
+  it still requests `@rpath/...` and has nowhere to resolve it. This was tried
+  and reverted — do not try it again.
+- `MACOSX_DEPLOYMENT_TARGET=26.0` does **not** stop the shim back-deploying.
+  Also tried and reverted; it silently raises the OS minimum for no benefit.
+
+**The fix** is to bundle the runtime: copy
+`libswift_Concurrency.dylib` into `clide.app/Contents/Frameworks/` and add
+`@loader_path/../Frameworks` as an rpath, then re-sign. Do this before cutting
+a release.
+
 ### `foundation-models` needs a Swift rpath
 
 It compiles a Swift shim linking `libswift_Concurrency.dylib`, which on this
