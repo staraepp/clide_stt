@@ -31,8 +31,32 @@ export function RefineSection({
       .catch((error) => console.error("could not list refiners", error));
   }, [status.settings.mode, status.settings.refineEngines]);
 
+  // Only one engine ever runs: the first one that is both switched on and
+  // able to. With several toggled on, nothing previously said which — so the
+  // list showed three equal-looking options and no answer.
+  const active = refiners.find(
+    (refiner) =>
+      status.settings.refineEngines.includes(refiner.id) && refiner.available,
+  );
+
   return (
     <div className="flex flex-col gap-4">
+      <p className="rounded-ctl border border-line bg-sunken/60 px-3 py-2.5 text-[12.5px] leading-relaxed text-ink-2">
+        {active ? (
+          <>
+            Rewrite will use <strong className="text-ink">{active.name}</strong>.
+            {active.local
+              ? " Your transcript stays on this Mac."
+              : " Your transcript is sent to them."}
+          </>
+        ) : (
+          <>
+            No engine is switched on, so Rewrite returns your{" "}
+            <strong className="text-ink">Polished</strong> transcript — spacing,
+            punctuation and filler words cleaned up locally.
+          </>
+        )}
+      </p>
       <Segmented
         className="w-full"
         value={status.settings.refineStyle}
@@ -94,11 +118,13 @@ export function RefineSection({
                 <span className="text-[11px] text-ink-3">
                   {!refiner.available
                     ? "Unavailable"
-                    : enabled
-                      ? refiner.local
-                        ? "On · stays on this Mac"
-                        : "On · text leaves your Mac"
-                      : "Off"}
+                    : !enabled
+                      ? "Off"
+                      : refiner.id === active?.id
+                        ? refiner.local
+                          ? "In use · stays on this Mac"
+                          : "In use · text leaves your Mac"
+                        : "On · used if the one above cannot run"}
                 </span>
               </span>
             </li>

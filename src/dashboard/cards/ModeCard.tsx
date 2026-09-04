@@ -4,9 +4,9 @@ import * as commands from "@/lib/commands";
 import type { ProcessingMode } from "@/lib/types";
 
 const DESCRIPTIONS: Record<ProcessingMode, string> = {
-  verbatim: "Your words as spoken. Spacing is tidied, nothing else.",
-  polished: "Local cleanup — fillers, stutters, spacing. No model, no delay.",
-  rewrite: "Apple Intelligence turns spoken phrasing into written prose, on this Mac.",
+  verbatim: "Your words exactly as spoken. Only spacing is tidied.",
+  polished: "Formats your text: punctuation, capitals, and \u201cum\u201d removed. Local, instant.",
+  rewrite: "Formats it, then rephrases it as written prose using the engine you chose.",
 };
 
 /**

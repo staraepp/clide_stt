@@ -87,7 +87,10 @@ impl AppSettings {
             refine_style: RefineStyle::default(),
             // Only the on-device engine by default. A cloud refiner sends the
             // transcript to a third party, which is the user's call to make.
-            refine_engines: vec!["apple-intelligence".to_string()],
+            refine_engines: vec![
+                "spoken-formatting".to_string(),
+                "apple-intelligence".to_string(),
+            ],
             onboarding_complete: false,
         }
     }

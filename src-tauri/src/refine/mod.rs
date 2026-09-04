@@ -10,6 +10,7 @@
 
 pub mod apple_intelligence;
 pub mod cloud;
+pub mod formatting;
 pub mod registry;
 pub mod traits;
 
