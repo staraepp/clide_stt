@@ -57,6 +57,30 @@ fn stamp_build_info() {
             .map(|d| d.as_secs().to_string())
             .unwrap_or_default()
     );
-    // Rebuild when HEAD moves, so the stamp does not go stale.
+    // Rebuild when HEAD moves, so the stamp does not go stale. In a normal
+    // checkout `.git/HEAD` only contains `ref: refs/heads/<branch>` and does
+    // not itself change on every commit, so watch the resolved branch ref too.
     println!("cargo:rerun-if-changed=../.git/HEAD");
+    if let Ok(output) = std::process::Command::new("git")
+        .args(["symbolic-ref", "-q", "HEAD"])
+        .output()
+    {
+        if output.status.success() {
+            let reference = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if !reference.is_empty() {
+                if let Ok(path) = std::process::Command::new("git")
+                    .args(["rev-parse", "--git-path", &reference])
+                    .output()
+                {
+                    if path.status.success() {
+                        let path = String::from_utf8_lossy(&path.stdout).trim().to_string();
+                        if !path.is_empty() {
+                            println!("cargo:rerun-if-changed={path}");
+                        }
+                    }
+                }
+            }
+        }
+    }
+    println!("cargo:rerun-if-changed=../.git/packed-refs");
 }
