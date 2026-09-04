@@ -86,6 +86,44 @@ pub fn request_accessibility_access() -> PermissionStatus {
     accessibility_status()
 }
 
+/// Remove a stale Accessibility record for this app, then ask macOS to
+/// register the currently running signed build.
+///
+/// This is deliberately separate from the normal request path. A previous
+/// ad-hoc build can leave an enabled-looking TCC row whose requirement is an
+/// obsolete binary cdhash. Resetting is destructive to that row, so it only
+/// happens after the user explicitly chooses Repair access in Clide.
+pub fn repair_accessibility_access(bundle_identifier: &str) -> Result<PermissionStatus, String> {
+    if ax::is_process_trusted() {
+        return Ok(PermissionStatus::Granted);
+    }
+
+    let output = accessibility_reset_command(bundle_identifier)
+        .output()
+        .map_err(|error| format!("Could not start macOS's permission repair: {error}"))?;
+
+    if !output.status.success() {
+        let detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        tracing::warn!(?output.status, detail, "Accessibility repair failed");
+        return Err(if detail.is_empty() {
+            "macOS could not reset Clide's Accessibility permission.".into()
+        } else {
+            format!("macOS could not reset Clide's Accessibility permission: {detail}")
+        });
+    }
+
+    // Re-register the current designated requirement. macOS displays its
+    // normal consent prompt; Clide never edits TCC.db directly.
+    ax::prompt_for_trust();
+    Ok(accessibility_status())
+}
+
+fn accessibility_reset_command(bundle_identifier: &str) -> std::process::Command {
+    let mut command = std::process::Command::new("/usr/bin/tccutil");
+    command.args(["reset", "Accessibility", bundle_identifier]);
+    command
+}
+
 /// Open the Accessibility pane in System Settings.
 pub fn open_accessibility_settings() {
     open_url("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility");
@@ -105,6 +143,7 @@ fn open_url(url: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::ffi::OsStr;
 
     #[test]
     fn reading_permissions_is_side_effect_free() {
@@ -134,5 +173,18 @@ mod tests {
         };
         assert!(mic_only.can_capture());
         assert!(!mic_only.can_insert());
+    }
+
+    #[test]
+    fn accessibility_repair_targets_only_this_app() {
+        let command = accessibility_reset_command("com.example.clide");
+        assert_eq!(command.get_program(), OsStr::new("/usr/bin/tccutil"));
+        assert_eq!(
+            command.get_args().collect::<Vec<_>>(),
+            ["reset", "Accessibility", "com.example.clide"]
+                .iter()
+                .map(OsStr::new)
+                .collect::<Vec<_>>()
+        );
     }
 }

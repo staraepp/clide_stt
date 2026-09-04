@@ -118,6 +118,7 @@ export function Onboarding({
               {step === "accessibility" && (
                 <AccessibilityStep
                   status={status.permissions.accessibility}
+                  adHocBuild={status.adHocBuild}
                   refresh={refresh}
                 />
               )}

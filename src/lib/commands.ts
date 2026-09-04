@@ -48,6 +48,8 @@ export const requestMicrophonePermission = () =>
   invoke<PermissionStatus>("request_microphone_permission");
 export const requestAccessibilityPermission = () =>
   invoke<PermissionStatus>("request_accessibility_permission");
+export const repairAccessibilityPermission = () =>
+  invoke<PermissionStatus>("repair_accessibility_permission");
 export const openAccessibilitySettings = () =>
   invoke<void>("open_accessibility_settings");
 export const openMicrophoneSettings = () =>

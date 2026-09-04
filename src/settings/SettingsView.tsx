@@ -19,6 +19,7 @@ export function SettingsView({
 }) {
   const [shortcutError, setShortcutError] = useState<string | null>(null);
   const [insertionTest, setInsertionTest] = useState<string | null>(null);
+  const [permissionRepair, setPermissionRepair] = useState<string | null>(null);
 
   return (
     <div className="scroll-area -mr-2 grid h-full auto-rows-min grid-cols-12 gap-3 py-3 pb-12 pr-2">
@@ -144,6 +145,24 @@ export function SettingsView({
           <Button onClick={() => commands.openAccessibilitySettings()}>
             Accessibility settings
           </Button>
+          {status.permissions.accessibility !== "granted" && !status.adHocBuild && (
+            <Button
+              onClick={async () => {
+                setPermissionRepair(null);
+                try {
+                  await commands.repairAccessibilityPermission();
+                  setPermissionRepair(
+                    "Clide's stale permission entry was cleared. Grant access in the macOS prompt, then return here.",
+                  );
+                  refresh();
+                } catch (error) {
+                  setPermissionRepair(commands.errorMessage(error));
+                }
+              }}
+            >
+              Repair accessibility
+            </Button>
+          )}
           <Button
             variant="ghost"
             onClick={async () => {
@@ -171,6 +190,11 @@ export function SettingsView({
         {insertionTest && (
           <p className="mt-3 text-[12px] leading-relaxed text-ink-3">
             {insertionTest}
+          </p>
+        )}
+        {permissionRepair && (
+          <p className="mt-2 text-[12px] leading-relaxed text-ink-3">
+            {permissionRepair}
           </p>
         )}
       </Section>

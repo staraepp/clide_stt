@@ -84,6 +84,7 @@ pub fn run() {
             commands::permissions::request_microphone_permission,
             commands::permissions::request_speech_permission,
             commands::permissions::request_accessibility_permission,
+            commands::permissions::repair_accessibility_permission,
             commands::permissions::open_accessibility_settings,
             commands::permissions::open_microphone_settings,
             commands::providers::list_providers,

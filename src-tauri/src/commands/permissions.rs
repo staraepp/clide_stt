@@ -3,6 +3,8 @@
 //! Requests are only ever called from onboarding, and every one of them
 //! re-reads the real system state afterwards instead of trusting the prompt.
 
+use tauri::AppHandle;
+
 use crate::permissions::{self, PermissionSnapshot, PermissionStatus};
 
 #[tauri::command]
@@ -21,6 +23,13 @@ pub async fn request_microphone_permission() -> PermissionStatus {
 #[tauri::command]
 pub fn request_accessibility_permission() -> PermissionStatus {
     permissions::request_accessibility_access()
+}
+
+/// Repair the specific case where System Settings shows Clide enabled but the
+/// grant still belongs to an older code signature.
+#[tauri::command]
+pub fn repair_accessibility_permission(app: AppHandle) -> Result<PermissionStatus, String> {
+    permissions::repair_accessibility_access(&app.config().identifier)
 }
 
 #[tauri::command]
