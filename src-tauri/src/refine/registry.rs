@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use super::apple_intelligence::AppleIntelligenceRefiner;
 use super::cloud::CloudRefiner;
-use super::formatting::FormattingRefiner;
 use super::traits::{Refiner, RefinerDescriptor};
 use crate::credentials::Credentials;
 
@@ -19,9 +18,11 @@ impl RefinerRegistry {
             // the transcript anywhere, so it is the one to reach for by
             // default. The cloud engines are off until switched on.
             refiners: vec![
-                // Deterministic and instant, so it runs before anything that
-                // has to load a model or reach a network.
-                Arc::new(FormattingRefiner::new()),
+                // Order is the fallback order. Apple Intelligence first
+                // because it is the only rewriter that keeps the transcript on
+                // the Mac. Spoken punctuation is *not* here — it is a
+                // pre-pass, applied before any of these, so enabling it can
+                // never stop a rewrite from happening.
                 Arc::new(AppleIntelligenceRefiner::new()),
                 Arc::new(CloudRefiner::groq(http.clone(), credentials.clone())),
                 Arc::new(CloudRefiner::openai(http, credentials)),

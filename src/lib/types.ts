@@ -54,6 +54,7 @@ export interface AppSettings {
   fallback: FallbackPolicy;
   refineStyle: RefineStyle;
   refineEngines: string[];
+  spokenPunctuation: boolean;
   shortcut: string;
   behavior: DictationBehavior;
   mode: ProcessingMode;

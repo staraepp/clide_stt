@@ -87,6 +87,38 @@ impl RefineStyle {
     }
 }
 
+/// Strip quotation marks a model wrapped around its whole answer.
+///
+/// Asked to "reply with only the corrected text", models very often reply with
+/// `"the corrected text"`. The user did not say those quotes, so they are not
+/// part of the transcript. Only removed when they enclose the *entire* reply —
+/// a genuinely quoted sentence keeps its quotes.
+pub fn strip_wrapping_quotes(text: &str) -> &str {
+    let trimmed = text.trim();
+
+    const PAIRS: &[(char, char)] = &[
+        ('"', '"'),
+        ('\u{201c}', '\u{201d}'),
+        ('\'', '\''),
+        ('\u{2018}', '\u{2019}'),
+    ];
+
+    for (open, close) in PAIRS {
+        if let Some(inner) = trimmed
+            .strip_prefix(*open)
+            .and_then(|rest| rest.strip_suffix(*close))
+        {
+            // Only if nothing else in the body closes it — otherwise this was
+            // a sentence that happened to start and end with a quote.
+            if !inner.contains(*close) {
+                return inner.trim();
+            }
+        }
+    }
+
+    trimmed
+}
+
 #[derive(Clone, Debug)]
 pub struct RefineRequest {
     pub text: String,
@@ -266,6 +298,32 @@ mod tests {
         for failure in failures {
             assert!(failure.is_recoverable(), "{failure} was not recoverable");
         }
+    }
+
+    #[test]
+    fn a_model_wrapping_its_whole_answer_in_quotes_is_unwrapped() {
+        assert_eq!(strip_wrapping_quotes("\"Move the kickoff.\""), "Move the kickoff.");
+        assert_eq!(
+            strip_wrapping_quotes("\u{201c}Move the kickoff.\u{201d}"),
+            "Move the kickoff."
+        );
+        assert_eq!(strip_wrapping_quotes("  \"padded\"  "), "padded");
+    }
+
+    /// A sentence that genuinely quotes someone must keep its quotes.
+    #[test]
+    fn real_quotations_inside_the_text_are_preserved() {
+        let quoted = "She said \"hello\" and left.";
+        assert_eq!(strip_wrapping_quotes(quoted), quoted);
+
+        let both = "\"first\" then \"second\"";
+        assert_eq!(strip_wrapping_quotes(both), both);
+    }
+
+    #[test]
+    fn unquoted_text_is_returned_unchanged() {
+        assert_eq!(strip_wrapping_quotes("plain text"), "plain text");
+        assert_eq!(strip_wrapping_quotes(""), "");
     }
 
     #[test]

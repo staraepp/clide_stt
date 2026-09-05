@@ -1,34 +1,14 @@
-//! Deterministic formatting, on this Mac, with no model at all.
+//! Spoken punctuation: turning what people *say* into what they mean.
 //!
-//! Polished already removes fillers and fixes capitalisation. This goes
-//! further and handles the things people *say* rather than type: "new line",
-//! "comma", "open quote". Dictating an email means saying punctuation aloud,
-//! and no amount of language modelling reads that more reliably than a lookup
-//! table does.
+//! Dictating an email means saying "comma" and "new line" aloud. A lookup
+//! table reads that more reliably than any amount of language modelling, and
+//! does it instantly.
 //!
-//! It is instant, offline, and cannot invent words — which makes it the safest
-//! refiner in the list and a reasonable default for people who want their own
-//! sentences back rather than a rewrite of them.
-
-use async_trait::async_trait;
-
-use super::traits::{RefineError, RefineRequest, Refiner};
-
-const ENGINE_ID: &str = "spoken-formatting";
-
-pub struct FormattingRefiner;
-
-impl FormattingRefiner {
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-impl Default for FormattingRefiner {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+//! This is a **processing step, not a refinement engine**. It was briefly the
+//! latter, which was a mistake: sitting in the same list as Apple Intelligence
+//! meant enabling it silently prevented any rewrite from running, and it only
+//! applied in Rewrite mode. Punctuation you spoke aloud belongs in Verbatim
+//! and Polished too, and should never cost a model call.
 
 /// Spoken commands and the punctuation they stand for.
 ///
@@ -135,45 +115,6 @@ fn tidy_spacing(input: &str) -> String {
     out.trim().to_string()
 }
 
-#[async_trait]
-impl Refiner for FormattingRefiner {
-    fn id(&self) -> &'static str {
-        ENGINE_ID
-    }
-
-    fn name(&self) -> &'static str {
-        "Spoken punctuation"
-    }
-
-    fn description(&self) -> &'static str {
-        "Turns \"comma\", \"new line\" and \"question mark\" into punctuation. Instant, no model."
-    }
-
-    fn local(&self) -> bool {
-        true
-    }
-
-    /// Always available: no model, no download, no permission.
-    fn availability(&self) -> Result<(), RefineError> {
-        Ok(())
-    }
-
-    async fn refine(&self, request: RefineRequest) -> Result<String, RefineError> {
-        let formatted = apply_spoken_punctuation(&request.text);
-
-        // A formatter that empties a sentence is worse than one that leaves it
-        // alone, so an empty result is treated as a refusal.
-        if formatted.trim().is_empty() && !request.text.trim().is_empty() {
-            return Err(RefineError::Declined {
-                engine: ENGINE_ID,
-                detail: "formatting would have emptied the transcript".into(),
-            });
-        }
-
-        Ok(formatted)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -233,23 +174,4 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn it_never_returns_nothing_for_real_input() {
-        let refiner = FormattingRefiner::new();
-        let result = refiner
-            .refine(RefineRequest {
-                text: "hello comma world".into(),
-                style: super::super::traits::RefineStyle::Tidy,
-            })
-            .await
-            .unwrap();
-        assert_eq!(result, "hello, world");
-    }
-
-    #[test]
-    fn it_is_local_and_always_available() {
-        let refiner = FormattingRefiner::new();
-        assert!(refiner.local());
-        assert!(refiner.availability().is_ok());
-    }
 }

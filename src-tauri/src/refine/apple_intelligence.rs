@@ -92,7 +92,9 @@ impl Refiner for AppleIntelligenceRefiner {
                 detail: error.to_string(),
             })?;
 
-        let refined = response.content.trim().to_string();
+        // Models routinely wrap their answer in quotes; the user did not
+        // say those.
+        let refined = super::traits::strip_wrapping_quotes(&response.content).to_string();
 
         if refined.is_empty() {
             return Err(RefineError::Declined {

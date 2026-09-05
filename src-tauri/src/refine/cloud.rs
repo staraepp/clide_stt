@@ -133,7 +133,10 @@ impl Refiner for CloudRefiner {
             .choices
             .into_iter()
             .next()
-            .map(|choice| choice.message.content.trim().to_string())
+            .map(|choice| {
+                // Models routinely wrap their answer in quotes.
+                super::traits::strip_wrapping_quotes(&choice.message.content).to_string()
+            })
             .unwrap_or_default();
 
         if refined.is_empty() {

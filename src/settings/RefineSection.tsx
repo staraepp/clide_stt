@@ -53,7 +53,7 @@ export function RefineSection({
           <>
             No engine is switched on, so Rewrite returns your{" "}
             <strong className="text-ink">Polished</strong> transcript — spacing,
-            punctuation and filler words cleaned up locally.
+            punctuation and filler words cleaned up locally, with no delay.
           </>
         )}
       </p>

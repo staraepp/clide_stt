@@ -288,3 +288,15 @@ pub fn set_refine_engine_enabled(
     events::emit_bare(&app, events::SETTINGS_CHANGED);
     Ok(())
 }
+
+/// Turn spoken punctuation on or off.
+///
+/// Applies in every mode and costs no model call, which is why it is separate
+/// from the Rewrite engines rather than one of them.
+#[tauri::command]
+pub fn set_spoken_punctuation(app: AppHandle, enabled: bool) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    state.update_settings(|settings| settings.spoken_punctuation = enabled)?;
+    events::emit_bare(&app, events::SETTINGS_CHANGED);
+    Ok(())
+}

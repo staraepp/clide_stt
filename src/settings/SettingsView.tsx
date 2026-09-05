@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Card } from "@/components/Card";
 import { cn } from "@/lib/cn";
 import { Segmented } from "@/components/Segmented";
+import { Toggle } from "@/components/Toggle";
 import { ShortcutRecorder } from "@/components/ShortcutRecorder";
 import { Button } from "@/components/Button";
 import { ProviderSettings } from "@/providers/ProviderSettings";
@@ -73,6 +74,30 @@ export function SettingsView({
         description="clide is bring-your-own-key. Keys are stored on this Mac only, in a file just your account can read. They never reach clide's database, its settings, or any log."
       >
         <ProviderSettings onChange={refresh} />
+      </Section>
+
+      <Section
+        title="Spoken punctuation"
+        description="Say &ldquo;comma&rdquo;, &ldquo;new line&rdquo; or &ldquo;question mark&rdquo; and clide types the punctuation instead of the word. Works in every mode and adds no delay."
+      >
+        <label className="flex items-center gap-3">
+          <Toggle
+            checked={status.settings.spokenPunctuation}
+            label="Turn spoken punctuation into punctuation marks"
+            onChange={async (next) => {
+              await commands.setSpokenPunctuation(next);
+              refresh();
+            }}
+          />
+          <span className="text-[13px] text-ink">
+            {status.settings.spokenPunctuation ? "On" : "Off"}
+          </span>
+        </label>
+        <p className="mt-3 text-[12px] leading-relaxed text-ink-3">
+          {status.settings.spokenPunctuation
+            ? "\u201cready comma set\u201d becomes \u201cready, set\u201d."
+            : "The words \u201ccomma\u201d and \u201cperiod\u201d are typed out as you said them."}
+        </p>
       </Section>
 
       <Section

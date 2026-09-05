@@ -363,12 +363,17 @@ async fn process(app: &AppHandle, raw: String) -> Option<String> {
     events::emit_state(app, &next);
     events::emit_bare(app, events::PROCESSING_STARTED);
 
-    let (mode, style, engines) = {
+    let (mode, style, engines, spoken) = {
         let settings = state.settings();
-        (settings.mode, settings.refine_style, settings.refine_engines)
+        (
+            settings.mode,
+            settings.refine_style,
+            settings.refine_engines,
+            settings.spoken_punctuation,
+        )
     };
 
-    match processing::process(mode, &raw) {
+    match processing::process(mode, &raw, spoken) {
         Ok(text) => {
             let text = if mode == processing::ProcessingMode::Rewrite {
                 refine_text(app, text, style, &engines).await

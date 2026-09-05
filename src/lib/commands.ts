@@ -170,3 +170,7 @@ export const requestSpeechPermission = () =>
 /** Switch a refinement engine on or off. Cloud engines send text off the Mac. */
 export const setRefineEngineEnabled = (engineId: string, enabled: boolean) =>
   invoke<void>("set_refine_engine_enabled", { engineId, enabled });
+
+/** Spoken "comma" and "new line" become punctuation. Applies in every mode. */
+export const setSpokenPunctuation = (enabled: boolean) =>
+  invoke<void>("set_spoken_punctuation", { enabled });
