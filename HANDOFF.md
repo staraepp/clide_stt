@@ -65,8 +65,9 @@ this file only records *state of the build*, never product decisions.
   `ef4c3eba739ff457505e25319d9dedcf46fb1c31fd0e6410233444e793688474`).
 - **The published 2.1.2 CUDA installer is T4-only** (`clide.exe` contains only
   `sm_75`). It can fail on RTX 30/40/50 cards with no compatible kernel image.
-  The build script now defaults to `CUDAARCHS=all-major`; rebuild before
-  distributing to RTX users. An explicit `CUDAARCHS` still overrides it.
+  The build script now defaults to `CUDAARCHS=75;86;89;120` (T4, RTX 20/30/40/50);
+  rebuild before distributing to RTX users. An explicit `CUDAARCHS` still
+  overrides it, e.g. `all-major` for data-center cards.
 - **Rebuilt 2.1.3 CUDA installer (2026-11-27)** on the same `g4dn.2xlarge` with
   `CUDAARCHS=75;86;89;120` (CMake emitted `sm_120a` for the last entry).
   `clide.exe` (192,264,192 bytes) contains `sm_75`, `sm_86`, `sm_89` and

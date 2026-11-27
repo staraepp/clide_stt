@@ -73,8 +73,9 @@ inference, microphone capture, insertion and installer execution were not run.
 That first CUDA artifact is **T4-only**: its `clide.exe` contains only
 `sm_75` code. Do not use it on RTX 30/40/50-series cards; they need a compatible
 SASS architecture or PTX. `scripts/build-windows.ps1` now defaults to
-`CUDAARCHS=all-major` for new builds, while still honoring an explicit
-`CUDAARCHS` override.
+`CUDAARCHS=75;86;89;120` for new builds (T4, RTX 20/30/40/50), while still
+honoring an explicit `CUDAARCHS` override. Use `all-major` only when
+data-center GPUs such as A100 or H100 matter; it makes the installer larger.
 
 The NSIS packaging step needs a system NSIS 3.13 plus the Tauri
 `nsis_tauri_utils` plugin because the Tauri-bundled NSIS binary requires the

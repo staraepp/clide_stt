@@ -29,10 +29,10 @@ if ($useCuda) {
   }
   $env:ORT_CUDA_VERSION = "13"
   # A T4-only build (CUDAARCHS=75) crashes on newer RTX cards because the
-  # executable has no compatible kernel image. Build SASS for every major
-  # architecture by default; users can still override CUDAARCHS for a
-  # deliberately narrow build.
-  if (-not $env:CUDAARCHS) { $env:CUDAARCHS = "all-major" }
+  # executable has no compatible kernel image. Cover the desktop GPUs Clide
+  # targets: Tesla T4/RTX 20 (75), RTX 30 (86), RTX 40 (89), RTX 50 (120).
+  # Users can still override CUDAARCHS, e.g. "all-major" for data-center cards.
+  if (-not $env:CUDAARCHS) { $env:CUDAARCHS = "75;86;89;120" }
   $features = @("--features", "cuda")
   Write-Host "CUDA $cudaMajor detected: building GPU-accelerated Whisper and Parakeet for $env:CUDAARCHS."
 } else {
