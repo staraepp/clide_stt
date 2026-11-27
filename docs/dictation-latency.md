@@ -1,5 +1,25 @@
 # Dictation latency investigation
 
+## Metal cold-start fix (2026-11-26)
+
+Whisper inference was already using Metal on this M2 Pro, but the first model
+load took about 11 seconds because whisper.cpp embedded the Metal *source* and
+compiled every kernel at runtime. The build now ships a precompiled
+`default.metallib`; on the same machine:
+
+| Path | Before | After |
+| --- | --- | --- |
+| Metal library load | 11.336 s | 0.001–0.002 s |
+| First 7.8 s inference after load | 12.457 s | 1.580 s |
+| Later 7.8 s inference | ~440 ms | ~440–460 ms |
+| App model load (`speech model loaded`) | 9.45 s | 983 ms |
+| App warm-up inference | not measured | 914 ms |
+
+The app loads the library from `Contents/Resources/default.metallib`; development
+and test binaries get a copy beside the executable from `src-tauri/build.rs`.
+Regenerate it with `scripts/build-metal-library.sh` when the vendored Metal
+source changes.
+
 ## Follow-up optimization (2026-11-24)
 
 Parakeet now implements the same capture-time phrase worker as Whisper, in

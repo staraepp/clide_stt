@@ -1,0 +1,7 @@
+{
+  "bundle": {
+    "resources": {
+      "resources/default.metallib": "default.metallib"
+    }
+  }
+}

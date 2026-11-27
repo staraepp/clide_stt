@@ -258,7 +258,15 @@ fn main() {
     if cfg!(feature = "metal") {
         config.define("GGML_METAL", "ON");
         config.define("GGML_METAL_NDEBUG", "ON");
-        config.define("GGML_METAL_EMBED_LIBRARY", "ON");
+        // Embedding the Metal *source* makes first launch compile every kernel
+        // at runtime (measured ~11 s on an M2 Pro). Build the metallib once
+        // instead and load that; set CLIDE_METAL_EMBED_LIBRARY=1 only for
+        // experiments that need the old single-file source path.
+        let embed = env::var("CLIDE_METAL_EMBED_LIBRARY").as_deref() == Ok("1");
+        config.define(
+            "GGML_METAL_EMBED_LIBRARY",
+            if embed { "ON" } else { "OFF" },
+        );
     } else {
         // Metal is enabled by default, so we need to explicitly disable it
         config.define("GGML_METAL", "OFF");

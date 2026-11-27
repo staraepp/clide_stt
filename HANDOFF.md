@@ -13,13 +13,32 @@ https://clide.staraep.fun.
 Read `blueprint.md` (product truth) and `AGENTS.md` (engineering rules) first —
 this file only records *state of the build*, never product decisions.
 
-**Last updated:** 2026-11-26, v2.1.2: optional Windows CUDA acceleration.
+**Last updated:** 2026-11-27, v2.1.2 source: Metal cold-start fix.
 
 > Update this file at every milestone, not at the end of a session. The user
 > asked for this explicitly and repeatedly. A milestone is: a decision made, a
 > file group rewritten, a build passing or failing, a test run.
 
 ---
+
+# METAL COLD-START FIX (2026-11-27, v2.1.2 source)
+
+- Whisper already used Metal; inference was not the slow part. The first model
+  load compiled the embedded Metal source for ~11.3 s on this M2 Pro. Later
+  dictations were already ~440 ms for 7.8 s of audio.
+- The vendored whisper.cpp now builds/loads a precompiled `default.metallib`
+  instead of embedding the source (`GGML_METAL_EMBED_LIBRARY=OFF` by default).
+  `CLIDE_METAL_EMBED_LIBRARY=1` restores the old behavior for experiments.
+- The metallib is committed at `src-tauri/resources/default.metallib`; regenerate
+  it with `scripts/build-metal-library.sh`. `src-tauri/build.rs` copies it beside
+  dev/test binaries, and `src-tauri/tauri.macos.conf.json` puts it in
+  `Contents/Resources`.
+- Fixed the vendored CMake install rule for non-embedded Metal builds.
+- Verified on an M2 Pro: Metal library load 11.336 s -> 0.001 s; first 7.8 s
+  inference 12.457 s -> 1.580 s; app model load 9.45 s -> 983 ms; warm-up
+  inference 914 ms; 329 tests passed / 6 ignored.
+- Built an unsigned local `clide.app`; not published, no signed DMG produced.
+  The v2.1.2 GitHub release does not contain this fix.
 
 # WINDOWS CUDA ACCELERATION (2026-11-26, v2.1.2)
 
