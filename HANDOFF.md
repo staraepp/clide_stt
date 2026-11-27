@@ -67,6 +67,16 @@ this file only records *state of the build*, never product decisions.
   `sm_75`). It can fail on RTX 30/40/50 cards with no compatible kernel image.
   The build script now defaults to `CUDAARCHS=all-major`; rebuild before
   distributing to RTX users. An explicit `CUDAARCHS` still overrides it.
+- **Rebuilt 2.1.3 CUDA installer (2026-11-27)** on the same `g4dn.2xlarge` with
+  `CUDAARCHS=75;86;89;120` (CMake emitted `sm_120a` for the last entry).
+  `clide.exe` (192,264,192 bytes) contains `sm_75`, `sm_86`, `sm_89` and
+  `sm_120a` kernels (verified with strings; the release whisper-rs-sys
+  `CUDA_ARCHITECTURES` was `75;86;89;120`). Artifact:
+  `artifacts/clide_2.1.3_cuda_x64-setup.exe`, 575,515,354 bytes, SHA-256
+  `2cc8b779473e15acdd0742aff45a5363b18fd166f3c46fca4032538fbcc30ca5`,
+  attached to https://github.com/staraepp/clide_stt/releases/tag/v2.1.3.
+  It targets T4, RTX 20/30/40 and RTX 50 (including the RTX 5050) but still
+  needs a CUDA 13-capable driver (580+) and WebView2.
 - Packaging note: Tauri's bundled NSIS `makensis` requires the legacy 32-bit
   `MSVCP60.dll`. The working installer was produced with system NSIS 3.13 plus
   the Tauri `nsis_tauri_utils` plugin. Live GPU inference, capture, insertion,
@@ -74,6 +84,13 @@ this file only records *state of the build*, never product decisions.
 - Next: install the artifact on the T4 host, select CUDA-accelerated Whisper or
   Parakeet, and measure GPU load/latency with real dictation. Also consider
   bundling a smaller CUDA runtime; `cublasLt64_13.dll` alone is 477 MB.
+- Build-environment note: the Windows build volume was deleted after 2.1.2, so
+  Rust and the source were reinstalled under `C:/Rust` and `C:/c` on the
+  instance's root volume. CUDA 13, VS 2022 Build Tools, LLVM and NSIS survived.
+  The first `cargo check` after the reinstall failed under disk pressure from a
+  duplicate orphaned debug build; a clean rerun passed. `scripts/build-windows.ps1`
+  now creates a `windows-runtime` placeholder so a fresh checkout passes Tauri's
+  resource-glob check before the real DLLs are copied.
 
 # DICTIONARY + AUDIO-LOWERING SWITCH (2026-10-06, v2.1.1)
 

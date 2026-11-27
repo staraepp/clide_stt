@@ -8,6 +8,13 @@
   model load from about 9.5 seconds to about 1 second; later dictation was
   already Metal-accelerated.
 
+### Fixed
+- Windows CUDA builds now contain kernels for `sm_75`, `sm_86`, `sm_89` and
+  `sm_120a` instead of the Tesla T4-only `sm_75`. The 2.1.2 CUDA installer
+  failed on RTX 30/40/50-series cards with no compatible kernel image; the
+  2.1.3 installer works on T4 and current RTX generations, including the
+  RTX 5050.
+
 ## 2.1.1 - 2026-10-06
 
 ### Added

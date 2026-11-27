@@ -118,3 +118,13 @@ been installed or executed. Models are still downloaded only when selected.
 **Compatibility warning:** this artifact was compiled with `CUDAARCHS=75` and is
 only suitable for Tesla T4-class GPUs. RTX 30/40/50 cards need a rebuild with
 `CUDAARCHS=all-major` (the new default in the build script).
+
+`artifacts/clide_2.1.3_cuda_x64-setup.exe` is the rebuilt installer for current
+NVIDIA cards. It is 575,515,354 bytes with SHA-256
+`2cc8b779473e15acdd0742aff45a5363b18fd166f3c46fca4032538fbcc30ca5`.
+Its release build used `CUDAARCHS=75;86;89;120`; CMake emitted
+`compute_120a/sm_120a` for the last entry. The executable contains `sm_75`,
+`sm_86`, `sm_89` and `sm_120a` kernels, plus PTX for `sm_75`. That covers the
+Tesla T4, RTX 20/30/40 series and RTX 50 series, including the RTX 5050.
+It still requires a CUDA 13-capable NVIDIA driver (580 or newer) and WebView2,
+and it is unsigned and was not executed on a Windows desktop.
