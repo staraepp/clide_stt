@@ -86,10 +86,12 @@ Primary references:
 
 ## Mac package
 
-`artifacts/clide_2.1.2_aarch64.dmg` is Developer ID signed, Apple-notarized,
-stapled and Gatekeeper-verified. Version 2.1.2 was checked inside the mounted
-DMG. This is the Apple Silicon build. No release or updater manifest was
-published, and no installed application was replaced.
+`artifacts/clide_2.1.3_aarch64.dmg` is Developer ID signed, Apple-notarized,
+stapled and Gatekeeper-verified. Version 2.1.3 was checked inside the mounted
+DMG. This is the Apple Silicon build with the precompiled Metal library. No
+installed application was replaced.
+
+The previous `artifacts/clide_2.1.2_aarch64.dmg` is the older signed build.
 
 ## Windows package
 

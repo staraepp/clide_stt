@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.1.3 - 2026-11-27
+
+### Changed
+- macOS Whisper now ships a precompiled Metal shader library instead of
+  compiling the shader source on first launch. On an M2 Pro this cut the first
+  model load from about 9.5 seconds to about 1 second; later dictation was
+  already Metal-accelerated.
+
 ## 2.1.1 - 2026-10-06
 
 ### Added

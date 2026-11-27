@@ -13,7 +13,7 @@ https://clide.staraep.fun.
 Read `blueprint.md` (product truth) and `AGENTS.md` (engineering rules) first —
 this file only records *state of the build*, never product decisions.
 
-**Last updated:** 2026-11-27, v2.1.2 source: Metal cold-start fix.
+**Last updated:** 2026-11-27, v2.1.3: signed Metal cold-start release.
 
 > Update this file at every milestone, not at the end of a session. The user
 > asked for this explicitly and repeatedly. A milestone is: a decision made, a
@@ -21,7 +21,7 @@ this file only records *state of the build*, never product decisions.
 
 ---
 
-# METAL COLD-START FIX (2026-11-27, v2.1.2 source)
+# METAL COLD-START FIX (2026-11-27, v2.1.3)
 
 - Whisper already used Metal; inference was not the slow part. The first model
   load compiled the embedded Metal source for ~11.3 s on this M2 Pro. Later
@@ -37,8 +37,10 @@ this file only records *state of the build*, never product decisions.
 - Verified on an M2 Pro: Metal library load 11.336 s -> 0.001 s; first 7.8 s
   inference 12.457 s -> 1.580 s; app model load 9.45 s -> 983 ms; warm-up
   inference 914 ms; 329 tests passed / 6 ignored.
-- Built an unsigned local `clide.app`; not published, no signed DMG produced.
-  The v2.1.2 GitHub release does not contain this fix.
+- Built `artifacts/clide_2.1.3_aarch64.dmg`, Developer ID signed, Apple-notarized,
+  stapled and Gatekeeper-verified. SHA-256
+  `9bb1326c2fe8272de3c44571980ce3b8af92cb268ffdd3e12cd65bea950bdfdd`.
+  Release: https://github.com/staraepp/clide_stt/releases/tag/v2.1.3
 
 # WINDOWS CUDA ACCELERATION (2026-11-26, v2.1.2)
 
