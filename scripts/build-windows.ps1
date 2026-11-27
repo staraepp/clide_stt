@@ -49,6 +49,15 @@ foreach ($profile in @("debug", "release")) {
 npm ci
 if ($LASTEXITCODE -ne 0) { throw "npm ci failed" }
 
+# Tauri validates the Windows resource glob during `cargo check`, before the
+# real runtime DLLs exist on a fresh checkout. A placeholder keeps the glob
+# valid; it is deleted below and replaced with the actual runtime files before
+# the bundle is built.
+New-Item -ItemType Directory -Force "src-tauri/windows-runtime" | Out-Null
+if (-not (Get-ChildItem "src-tauri/windows-runtime" -Filter "*.dll" -File)) {
+  New-Item -ItemType File -Force "src-tauri/windows-runtime/placeholder.dll" | Out-Null
+}
+
 cargo check --manifest-path src-tauri/Cargo.toml @features
 if ($LASTEXITCODE -ne 0) { throw "cargo check failed" }
 
