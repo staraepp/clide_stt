@@ -522,7 +522,7 @@ dependencies = [
 
 [[package]]
 name = "clide"
-version = "2.1.1"
+version = "2.1.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -539,6 +539,7 @@ dependencies = [
  "objc2-avf-audio",
  "objc2-foundation",
  "objc2-speech",
+ "ort",
  "parakeet-rs",
  "reqwest 0.12.28",
  "rusqlite",
@@ -6078,8 +6079,6 @@ dependencies = [
 [[package]]
 name = "whisper-rs-sys"
 version = "0.15.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6986c0fe081241d391f09b9a071fbcbb59720c3563628c3c829057cf69f2a56f"
 dependencies = [
  "bindgen",
  "cfg-if",

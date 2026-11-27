@@ -67,7 +67,7 @@ export function DictionarySection({
           Learn words as you dictate
           <span className="mt-1 block text-[12px] text-ink-3">
             Every word of a finished dictation is added to the list below, on
-            this Mac only. Learned words don't change your text until you keep
+            this device only. Learned words don't change your text until you keep
             them.
           </span>
         </span>

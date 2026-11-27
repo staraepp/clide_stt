@@ -40,7 +40,8 @@ export function ModeCard({
           {
             value: "rewrite",
             label: "Rewrite",
-            hint: "Refines with an on-device model",
+            hint: /Win/i.test(navigator.platform) ? "Rewrite is unavailable in this Windows build" : "Refines with an on-device model",
+            disabled: /Win/i.test(navigator.platform),
           },
         ]}
       />

@@ -1,5 +1,5 @@
 fn main() {
-    link_swift_runtime();
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") { link_swift_runtime(); }
     stamp_build_info();
 
     tauri_build::build()

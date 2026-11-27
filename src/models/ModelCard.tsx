@@ -63,7 +63,7 @@ export function ModelCard({
       <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
         <Stars value={model.rating.accuracy} label="Accuracy" />
         <span className="text-[11px] text-ink-3">Accuracy</span>
-        <Stars value={model.rating.speed} label="Speed on this Mac" />
+        <Stars value={model.rating.speed} label="Speed on this device" />
         <span className="text-[11px] text-ink-3">Speed here</span>
       </div>
 

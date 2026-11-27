@@ -137,6 +137,16 @@ pub trait TranscriptionProvider: Send + Sync {
     /// runtime's own static cleanup abort, and macOS reports a crash.
     fn unload(&self) {}
 
+    /// Optional phrase recognition during capture. Unlike live typing this
+    /// never inserts partial text and works with Rewrite and backtracking.
+    /// Returning None keeps the normal full-recording path in charge.
+    fn start_capture(
+        &self,
+        _options: super::capture::CaptureOptions,
+    ) -> Option<super::capture::CaptureTranscription> {
+        None
+    }
+
     async fn transcribe(
         &self,
         request: TranscriptionRequest,

@@ -117,7 +117,7 @@ export function errorMessage(error: unknown): string {
 
 /* --- Models --------------------------------------------------------------- */
 
-/** Providers, models, and this Mac's hardware in one round trip. */
+/** Providers, models, and this machine's hardware in one round trip. */
 export const getModelsPage = () => invoke<ModelsPage>("get_models_page");
 
 /**

@@ -6,3 +6,8 @@ src-tauri/gen/schemas
 
 # Generated per release by scripts/make-update-manifest.mjs
 /latest.json
+
+# Downloaded Windows inference runtime
+src-tauri/windows-runtime/*.dll
+
+/artifacts/

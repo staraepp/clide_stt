@@ -83,7 +83,7 @@ export function DictationCard({
         <span className="ml-auto flex items-center gap-1.5 text-[12.5px] text-ink-2">
           {status.settings.behavior === "hold" ? "Hold" : "Press"}
           <Keys accelerator={status.settings.shortcut} />
-          anywhere in macOS
+          in any application
         </span>
       </div>
     </Card>

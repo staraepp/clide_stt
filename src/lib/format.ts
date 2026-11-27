@@ -36,7 +36,8 @@ export function preview(text: string, maxLength = 120): string {
  * Render a Tauri accelerator as macOS glyphs: "Alt+Space" -> ["⌥", "Space"].
  */
 export function shortcutKeys(accelerator: string): string[] {
-  const glyphs: Record<string, string> = {
+  const windows = typeof navigator !== "undefined" && /Win/i.test(navigator.platform);
+  const glyphs: Record<string, string> = windows ? { cmd: "Win", command: "Win", super: "Win", cmdorctrl: "Ctrl", commandorcontrol: "Ctrl", ctrl: "Ctrl", control: "Ctrl", alt: "Alt", option: "Alt", shift: "Shift" } : {
     cmd: "⌘",
     command: "⌘",
     super: "⌘",

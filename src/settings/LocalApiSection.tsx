@@ -10,7 +10,7 @@ import type { LocalApiStatus, SystemStatus } from "@/lib/types";
 
 /**
  * The optional local HTTP API: off by default, loopback only, bearer token on
- * every request. Everything here only changes what other apps on this Mac may
+ * every request. Everything here only changes what other apps on this device may
  * ask of Clide; nothing leaves the machine.
  */
 export function LocalApiSection({
@@ -77,7 +77,7 @@ export function LocalApiSection({
           onChange={(next) => run(() => commands.setLocalApiEnabled(next))}
         />
         <span className="text-[13px] leading-snug text-ink">
-          Let other apps on this Mac use Clide
+          Let other apps on this device use Clide
           <span className="mt-1 block text-[12px] text-ink-3">
             Off by default. Listens on 127.0.0.1 only, so nothing on your
             network can reach it, and every request needs the token below.

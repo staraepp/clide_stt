@@ -2,6 +2,10 @@
 
 pub mod clip;
 pub mod decode;
+#[cfg(target_os = "macos")]
+pub mod ducking;
+#[cfg(target_os = "windows")]
+#[path = "ducking_windows.rs"]
 pub mod ducking;
 pub mod error;
 pub mod recorder;

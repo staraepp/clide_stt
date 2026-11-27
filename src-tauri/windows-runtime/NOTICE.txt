@@ -1,0 +1,12 @@
+Windows runtime components
+
+DirectML.dll: supplied by the ONNX Runtime dependency distribution.
+CUDA-enabled builds also include onnxruntime_providers_cuda.dll and
+onnxruntime_providers_shared.dll from that distribution, plus unmodified copies
+of cudart64_13.dll, cublas64_13.dll and cublasLt64_13.dll from the NVIDIA CUDA
+13.x toolkit. nvcuda.dll is supplied by the NVIDIA display driver and is not
+bundled.
+Microsoft Visual C++ runtime DLLs: extracted from Microsoft's official x64
+redistributable, file version 14.52.37029.0.
+Source: https://aka.ms/vc14/vc_redist.x64.exe
+These binaries retain their original signatures; no DLL code was modified.

@@ -8,6 +8,7 @@
 //! missing, switched off, or fails, the pipeline uses the transcript as spoken
 //! — a rewrite that cannot run must never cost the user their words.
 
+#[cfg(target_os = "macos")]
 pub mod apple_intelligence;
 pub mod ollama;
 pub mod registry;

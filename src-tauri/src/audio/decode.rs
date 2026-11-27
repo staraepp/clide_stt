@@ -8,19 +8,26 @@
 
 use std::path::Path;
 
+#[cfg(target_os = "macos")]
 use objc2::AnyThread;
+#[cfg(target_os = "macos")]
 use objc2_avf_audio::{AVAudioFile, AVAudioPCMBuffer};
+#[cfg(target_os = "macos")]
 use objc2_foundation::{NSString, NSURL};
 
 use super::resample::{MonoDownsampler, TARGET_SAMPLE_RATE};
 
 /// Formats worth naming in an error message.
+#[cfg(target_os = "macos")]
 pub const SUPPORTED_FORMATS: &str = "wav, m4a, mp3, flac, caf, aiff";
+#[cfg(target_os = "windows")]
+pub const SUPPORTED_FORMATS: &str = "PCM WAV";
 
 /// Longer than this is almost certainly not a dictation, and decoding it would
 /// hold a large buffer and the speech engine for a long time.
 pub const MAX_SECONDS: usize = 30 * 60;
 
+#[cfg(target_os = "macos")]
 const CHUNK_FRAMES: u32 = 32_768;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -74,6 +81,7 @@ pub fn check_container(head: &[u8], file_name: Option<&str>) -> Result<(), Decod
 }
 
 /// Decode `path` to 16 kHz mono 16-bit samples. Blocking.
+#[cfg(target_os = "macos")]
 pub fn decode_to_16k_mono(path: &Path) -> Result<Vec<i16>, DecodeError> {
     let unreadable = |detail: String| DecodeError::Unreadable(detail);
 
@@ -252,4 +260,19 @@ mod tests {
         let message = DecodeError::Unsupported("webm".into()).to_string();
         assert!(message.contains("wav") && message.contains("m4a"));
     }
+}
+
+#[cfg(target_os = "windows")]
+pub fn decode_to_16k_mono(path: &Path) -> Result<Vec<i16>, DecodeError> {
+ let mut reader = hound::WavReader::open(path).map_err(|_| DecodeError::Unsupported("Windows imports currently support PCM WAV only".into()))?;
+ let spec = reader.spec();
+ if spec.sample_rate == 0 || spec.channels == 0 || spec.bits_per_sample == 0 { return Err(DecodeError::Unreadable("invalid WAV format".into())); }
+ if reader.duration() as f64 / spec.sample_rate.max(1) as f64 > MAX_SECONDS as f64 { return Err(DecodeError::TooLong); }
+ let input: Vec<f32> = if spec.sample_format == hound::SampleFormat::Float {
+ reader.samples::<f32>().collect::<Result<_,_>>().map_err(|e| DecodeError::Unreadable(e.to_string()))?
+ } else { let scale = 2_f32.powi(spec.bits_per_sample as i32 - 1);
+ reader.samples::<i32>().map(|v| v.map(|v| v as f32 / scale)).collect::<Result<_,_>>().map_err(|e| DecodeError::Unreadable(e.to_string()))? };
+ let mono: Vec<f32> = input.chunks(spec.channels.max(1) as usize).map(|f| f.iter().sum::<f32>() / f.len() as f32).collect();
+ if mono.is_empty() { return Err(DecodeError::Unreadable("no audio".into())); }
+ Ok(to_16k(&mono, spec.sample_rate as f64))
 }

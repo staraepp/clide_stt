@@ -94,9 +94,11 @@ pub fn rate_local(entry: &CatalogEntry, hardware: &Hardware) -> Rating {
         Fit::TooLarge
     };
 
-    // Without Metal or the ANE, local inference is materially slower, and the
-    // rating should say so rather than flattering an Intel Mac.
-    let acceleration = if hardware.apple_silicon { 1.0 } else { 0.6 };
+    // Without a GPU backend, local inference is materially slower, and the
+    // rating should say so rather than flattering a CPU-only machine.
+    let accelerated =
+        hardware.apple_silicon || hardware.accelerator.as_deref() == Some("CUDA");
+    let acceleration = if accelerated { 1.0 } else { 0.6 };
 
     let pressure = match fit {
         Fit::Great => 1.0,
@@ -139,6 +141,8 @@ mod tests {
             total_memory_bytes: gigabytes * 1_073_741_824,
             performance_cores: 8,
             apple_silicon,
+            gpu_name: None,
+            accelerator: None,
         }
     }
 
@@ -175,6 +179,21 @@ mod tests {
         let apple = rate_local(&small, &mac(16, true));
         let intel = rate_local(&small, &mac(16, false));
         assert!(intel.speed < apple.speed);
+    }
+
+    #[test]
+    fn cuda_windows_is_not_penalized_like_a_cpu_only_machine() {
+        let small = catalog::find("whisper-small").unwrap();
+        let cpu = mac(16, false);
+        let mut cuda = mac(16, false);
+        cuda.gpu_name = Some("NVIDIA Tesla T4".into());
+        cuda.accelerator = Some("CUDA".into());
+
+        assert!(rate_local(&small, &cuda).speed > rate_local(&small, &cpu).speed);
+        assert_eq!(
+            rate_local(&small, &cuda).speed,
+            rate_local(&small, &mac(16, true)).speed
+        );
     }
 
     #[test]

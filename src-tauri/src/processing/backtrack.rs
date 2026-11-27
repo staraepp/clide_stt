@@ -1,7 +1,7 @@
 //! Voice corrections: "scratch that" and friends.
 //!
-//! The pipeline is one-shot — the whole recording is transcribed, then
-//! processed — so a correction cannot edit text as it is being spoken. It
+//! Recognition can finish phrases while recording; the assembled transcript
+//! is processed once at the end, so a correction cannot edit text as it is being spoken. It
 //! resolves afterwards instead: each command phrase deletes the clause (or
 //! sentence) spoken just before it, then disappears itself, so
 //! "put it in models scratch that in providers" arrives as

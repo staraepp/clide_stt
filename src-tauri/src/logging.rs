@@ -38,7 +38,11 @@ pub fn init() {
 }
 
 pub fn log_path() -> Option<PathBuf> {
+    #[cfg(target_os = "windows")]
+    return Some(PathBuf::from(std::env::var_os("LOCALAPPDATA")?).join("Clide/Logs/clide.log"));
+    #[cfg(not(target_os = "windows"))]
     let home = std::env::var_os("HOME")?;
+    #[cfg(not(target_os = "windows"))]
     Some(PathBuf::from(home).join("Library/Logs/Clide/clide.log"))
 }
 

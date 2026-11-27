@@ -118,7 +118,7 @@ export function AboutSection() {
       </div>
 
       <p className="text-[11.5px] text-ink-3">
-        {about.license} licensed. Everything runs on this Mac.
+        {about.license} licensed. Everything runs on this device.
       </p>
     </div>
   );

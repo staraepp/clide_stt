@@ -1,6 +1,8 @@
 //! Transcription backends behind one normalised adapter interface.
 
+#[cfg(target_os = "macos")]
 pub mod apple;
+pub mod capture;
 pub mod error;
 pub mod local;
 pub mod registry;

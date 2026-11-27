@@ -13,13 +13,42 @@ https://clide.staraep.fun.
 Read `blueprint.md` (product truth) and `AGENTS.md` (engineering rules) first —
 this file only records *state of the build*, never product decisions.
 
-**Last updated:** 2026-10-06, v2.1.1: dictionary + audio-lowering switch.
+**Last updated:** 2026-11-26, v2.1.2: optional Windows CUDA acceleration.
 
 > Update this file at every milestone, not at the end of a session. The user
 > asked for this explicitly and repeatedly. A milestone is: a decision made, a
 > file group rewritten, a build passing or failing, a test run.
 
 ---
+
+# WINDOWS CUDA ACCELERATION (2026-11-26, v2.1.2)
+
+- Opt-in `cuda` Cargo feature enables CUDA for local Whisper (`whisper-rs/cuda`)
+  and Parakeet (`parakeet-rs/cuda`). `ort/copy-dylibs` makes the ONNX Runtime
+  provider DLLs available to the packaging script.
+- Windows hardware detection now reports an NVIDIA adapter (`nvidia-smi`) and
+  the active accelerator in CUDA builds. The Models page shows the GPU and
+  `CUDA acceleration`, and model ratings no longer apply the CPU-only speed
+  penalty when CUDA is available.
+- `scripts/build-windows.ps1` auto-detects `CUDA_PATH` or `nvcc.exe`, requires
+  CUDA 13, bundles the ONNX Runtime CUDA provider plus `cudart64_13.dll`,
+  `cublas64_13.dll` and `cublasLt64_13.dll`, and keeps `-CpuOnly` as the
+  original path. It now looks in both `CUDA\v13.0\bin` and `bin\x64`, and
+  `vswhere` is constrained to instances that actually include the VC tools.
+- Verified: macOS `cargo test --lib` 329 passed / 6 ignored, `cargo check`,
+  `npm run build`, Windows CPU `cargo-xwin check`, and a native Windows CUDA
+  release build on a `g4dn.2xlarge` Tesla T4 (Windows Server 2022, CUDA 13.0.48,
+  VS 2022 Build Tools 17.14, `CUDAARCHS=75`). `clide.exe` and the NSIS installer
+  both built. Artifact: `artifacts/clide_2.1.2_cuda_x64-setup.exe`
+  (471,512,593 bytes, SHA-256
+  `ef4c3eba739ff457505e25319d9dedcf46fb1c31fd0e6410233444e793688474`).
+- Packaging note: Tauri's bundled NSIS `makensis` requires the legacy 32-bit
+  `MSVCP60.dll`. The working installer was produced with system NSIS 3.13 plus
+  the Tauri `nsis_tauri_utils` plugin. Live GPU inference, capture, insertion,
+  installer execution and latency were not verified; the installer is unsigned.
+- Next: install the artifact on the T4 host, select CUDA-accelerated Whisper or
+  Parakeet, and measure GPU load/latency with real dictation. Also consider
+  bundling a smaller CUDA runtime; `cublasLt64_13.dll` alone is 477 MB.
 
 # DICTIONARY + AUDIO-LOWERING SWITCH (2026-10-06, v2.1.1)
 

@@ -45,7 +45,7 @@ export function RefineSection({
         {active ? (
           <>
             Rewrite will use <strong className="text-ink">{active.name}</strong>.
-            Your transcript stays on this Mac.
+            Your transcript stays on this device.
           </>
         ) : (
           <>
@@ -136,7 +136,7 @@ export function RefineSection({
                     : !enabled
                       ? "Off"
                       : refiner.id === active?.id
-                        ? "In use · stays on this Mac"
+                        ? "In use · stays on this device"
                         : "On · used if the one above cannot run"}
                 </span>
               </span>

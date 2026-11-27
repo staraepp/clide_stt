@@ -97,6 +97,10 @@ pub fn keep_main_window_behind(app: &AppHandle) {
     });
 }
 
+#[cfg(not(target_os = "macos"))]
+fn send_main_window_back(_app: &AppHandle) {}
+
+#[cfg(target_os = "macos")]
 fn send_main_window_back(app: &AppHandle) {
     use objc2::msg_send;
     use objc2::runtime::AnyObject;

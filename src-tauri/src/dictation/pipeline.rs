@@ -17,8 +17,8 @@ use crate::audio::AudioError;
 use crate::database::{now_ms, transcripts};
 use crate::dictation::events;
 use crate::dictation::live;
-use crate::dictation::text;
 use crate::dictation::machine::{DictationInput, DictationState, FailureStage};
+use crate::dictation::text;
 use crate::hud;
 use crate::insertion;
 use crate::processing;
@@ -35,7 +35,9 @@ const DONE_LINGER: Duration = Duration::from_millis(900);
 /// Begin capturing. Safe to call from the shortcut, the tray, or the UI; a
 /// call that arrives mid-transaction is ignored rather than treated as an error.
 pub async fn start(app: &AppHandle) {
+    let started = Instant::now();
     let state = app.state::<AppState>();
+    let _capture_control = state.capture_control.lock().await;
 
     // Applying first makes the "am I allowed to start" check atomic.
     let Ok(next) = state.session.apply(DictationInput::StartCapture) else {
@@ -48,18 +50,15 @@ pub async fn start(app: &AppHandle) {
     let target = insertion::focus::frontmost();
     state.session.begin(target.clone());
 
-    // Lower other apps' audio so the user's voice is the loudest thing in the
-    // room, if the user has asked for that. Restored on every path out of
-    // capture — see `unduck_audio`, which is harmless when nothing was lowered.
-    if state.settings().lower_audio_while_dictating {
-        state.session.duck_audio();
-    }
-
     start_live_typing(app);
+    if !live::is_active(app) {
+        start_capture_transcription(app);
+    }
 
     if let Err(error) = state.recorder.start() {
         tracing::error!(?error, "microphone capture failed to start");
         live::cancel(app);
+        cancel_capture_transcription(app);
         fail(app, FailureStage::Capture, capture_message(&error));
         return;
     }
@@ -75,11 +74,28 @@ pub async fn start(app: &AppHandle) {
 
     hud::show(app);
     spawn_level_ticker(app.clone());
+    tracing::info!(
+        ready_ms = started.elapsed().as_millis() as u64,
+        "dictation capture ready"
+    );
+
+    // Cosmetic audio handling must not delay the microphone or HUD. The
+    // epoch check under the ducking lock prevents a late worker lowering the
+    // volume after stop/cancel or for a newer capture.
+    if state.settings().lower_audio_while_dictating {
+        let epoch = state.session.epoch();
+        let app = app.clone();
+        tauri::async_runtime::spawn_blocking(move || {
+            app.state::<AppState>().session.duck_audio(epoch);
+        });
+    }
 }
 
 /// Stop capturing and run the rest of the pipeline.
 pub async fn stop(app: &AppHandle) {
+    let released = Instant::now();
     let state = app.state::<AppState>();
+    let capture_control = state.capture_control.lock().await;
 
     let Ok(next) = state.session.apply(DictationInput::StopCapture) else {
         tracing::debug!(current = state.session.state().name(), "stop ignored");
@@ -87,10 +103,6 @@ pub async fn stop(app: &AppHandle) {
     };
     events::emit_state(app, &next);
     events::emit_bare(app, events::DICTATION_STOPPED);
-
-    // The microphone is closed, so there is nothing left to hear over.
-    // Transcription does not need the room quiet.
-    state.session.unduck_audio();
 
     let recorder = app.clone();
     let recorded =
@@ -102,6 +114,7 @@ pub async fn stop(app: &AppHandle) {
         Ok(Err(error)) => {
             tracing::warn!(?error, "no usable audio");
             live::cancel(app);
+            cancel_capture_transcription(app);
             state.session.release_audio();
             fail(app, FailureStage::Capture, capture_message(&error));
             return;
@@ -109,6 +122,7 @@ pub async fn stop(app: &AppHandle) {
         Err(error) => {
             tracing::error!(?error, "audio worker panicked");
             live::cancel(app);
+            cancel_capture_transcription(app);
             state.session.release_audio();
             fail(
                 app,
@@ -118,6 +132,11 @@ pub async fn stop(app: &AppHandle) {
             return;
         }
     };
+    state.session.unduck_audio();
+    tracing::info!(
+        finalize_ms = released.elapsed().as_millis() as u64,
+        "dictation audio finalized"
+    );
 
     // The target captured at start is kept: the user may already be looking
     // somewhere else, but they were speaking to that app.
@@ -131,11 +150,16 @@ pub async fn stop(app: &AppHandle) {
     // Live typing has already put the words in front of the user. If it typed
     // nothing — or never started — the recording goes through the ordinary
     // path, so a failed stream never costs a dictation.
+    drop(capture_control);
     if live::is_active(app) && deliver_live(app).await {
         return;
     }
 
     transcribe_and_deliver(app).await;
+    tracing::info!(
+        release_ms = released.elapsed().as_millis() as u64,
+        "dictation release finished"
+    );
 }
 
 /// Re-run the still-pending audio through the provider after a failure.
@@ -158,11 +182,13 @@ pub async fn retry(app: &AppHandle) {
 /// Abandon the transaction. Audio is deleted immediately.
 pub async fn cancel(app: &AppHandle) {
     let state = app.state::<AppState>();
+    let _capture_control = state.capture_control.lock().await;
 
     if state.session.state().is_capturing() {
         state.recorder.abort();
     }
     live::cancel(app);
+    cancel_capture_transcription(app);
     state.session.unduck_audio();
 
     let applied = state.session.apply(DictationInput::Cancel);
@@ -176,6 +202,7 @@ pub async fn cancel(app: &AppHandle) {
 
 /// Acknowledge a settled state and return to Idle.
 pub fn dismiss(app: &AppHandle) {
+    cancel_capture_transcription(app);
     let state = app.state::<AppState>();
     state.session.release_audio();
     hud::hide(app);
@@ -185,6 +212,45 @@ pub fn dismiss(app: &AppHandle) {
 }
 
 // --- live typing -----------------------------------------------------------
+
+fn start_capture_transcription(app: &AppHandle) {
+    use crate::providers::capture::{CaptureJob, CaptureOptions};
+    let state = app.state::<AppState>();
+    let settings = state.settings();
+    let Some(provider) = state.providers.get(&settings.provider_id) else {
+        return;
+    };
+    let options = CaptureOptions {
+        model: settings.model_id,
+        language: settings.language,
+        prompt: crate::context::vocabulary_prompt(
+            settings.technical_vocabulary,
+            &state.session.target(),
+            provider.capabilities().prompting,
+        ),
+    };
+    if let Some(run) = provider.start_capture(options.clone()) {
+        state.recorder.set_tap(Some(run.tap()));
+        *state
+            .capture_transcription
+            .lock()
+            .unwrap_or_else(|e| e.into_inner()) = Some(CaptureJob {
+            provider_id: settings.provider_id,
+            options,
+            run,
+        });
+    }
+}
+
+fn cancel_capture_transcription(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    state.recorder.set_tap(None);
+    state
+        .capture_transcription
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .take();
+}
 
 /// Begin streaming recognition when the engine, the mode and the permissions
 /// allow typing as the user speaks.
@@ -230,7 +296,10 @@ async fn deliver_live(app: &AppHandle) -> bool {
 
     // The words are already on screen; walk the machine to Complete so the
     // HUD, history and shortcut all behave as after any other dictation.
-    for input in [DictationInput::TranscriptReceived, DictationInput::Processed] {
+    for input in [
+        DictationInput::TranscriptReceived,
+        DictationInput::Processed,
+    ] {
         match state.session.apply(input) {
             Ok(next) => events::emit_state(app, &next),
             Err(_) => return true,
@@ -285,8 +354,7 @@ async fn try_fallback(
         let mut attempt = request.clone();
         attempt.model = candidate.model.clone();
 
-        match candidate.provider.transcribe(attempt).await
-        {
+        match candidate.provider.transcribe(attempt).await {
             Ok(result) => {
                 tracing::info!(
                     failed = %failed_provider,
@@ -335,6 +403,7 @@ async fn transcribe(app: &AppHandle) -> Option<String> {
     // Silence, a click or a breath. Speech models answer these with invented
     // text ("Thank you."), so they never get to see them.
     if pending.speech < crate::audio::speech::MIN_SPEECH {
+        cancel_capture_transcription(app);
         fail_transcription(app, NO_SPEECH_MESSAGE);
         return None;
     }
@@ -360,11 +429,8 @@ async fn transcribe(app: &AppHandle) -> Option<String> {
     };
 
     let target = state.session.target();
-    let prompt = crate::context::vocabulary_prompt(
-        vocabulary,
-        &target,
-        provider.capabilities().prompting,
-    );
+    let prompt =
+        crate::context::vocabulary_prompt(vocabulary, &target, provider.capabilities().prompting);
     if prompt.is_some() {
         tracing::info!(app = target.label(), "technical vocabulary applied");
     }
@@ -376,7 +442,59 @@ async fn transcribe(app: &AppHandle) -> Option<String> {
         prompt,
     };
 
-    let first_attempt = provider.transcribe(request.clone()).await;
+    state.recorder.set_tap(None);
+    let capture = state
+        .capture_transcription
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .take();
+    let epoch = state.session.epoch();
+    let waiting = Instant::now();
+    let mut recognized = None;
+    if let Some(job) = capture {
+        // A changed engine/language/prompt means the recording must be decoded
+        // with the new settings, just like an explicit retry.
+        if job.provider_id == provider_id
+            && job.options.model == request.model
+            && job.options.language == request.language
+            && job.options.prompt == request.prompt
+        {
+            match job.run.finish().await {
+                Ok(text) if !text.trim().is_empty() => {
+                    recognized = Some(crate::providers::Transcription {
+                        text,
+                        provider: provider_id.clone(),
+                        model: request.model.clone(),
+                        language: request.language.clone(),
+                        latency_ms: waiting.elapsed().as_millis() as u64,
+                    });
+                    tracing::info!(
+                        remaining_ms = waiting.elapsed().as_millis() as u64,
+                        "capture transcription finished"
+                    );
+                }
+                Ok(_) => tracing::debug!("empty capture transcript; using full recording"),
+                Err(error) => {
+                    tracing::info!(%error, "using full recording after capture transcription")
+                }
+            }
+        }
+    }
+    // Cancellation while inference runs must not insert an old transcript.
+    if state.session.epoch() != epoch
+        || !matches!(state.session.state(), DictationState::Transcribing { .. })
+    {
+        return None;
+    }
+    let first_attempt = match recognized {
+        Some(result) => Ok(result),
+        None => provider.transcribe(request.clone()).await,
+    };
+    if state.session.epoch() != epoch
+        || !matches!(state.session.state(), DictationState::Transcribing { .. })
+    {
+        return None;
+    }
 
     // Only reach for a substitute once the chosen engine has actually failed,
     // and never silently: whatever runs is named in the HUD. See

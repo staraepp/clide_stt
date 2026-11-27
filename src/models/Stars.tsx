@@ -4,7 +4,7 @@ import { cn } from "@/lib/cn";
  * A 0–5 rating in half stars.
  *
  * Every value shown here is derived in Rust from the model's declared class and
- * this Mac's measured memory and chip — never from a popularity score, which
+ * this device's measured memory and chip — never from a popularity score, which
  * Clide has no telemetry to know.
  */
 export function Stars({

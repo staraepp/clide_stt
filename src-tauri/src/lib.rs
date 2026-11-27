@@ -11,9 +11,17 @@ pub mod context;
 pub mod database;
 pub mod dictation;
 pub mod hud;
+#[cfg(target_os = "macos")]
+pub mod insertion;
+#[cfg(target_os = "windows")]
+#[path = "insertion/windows.rs"]
 pub mod insertion;
 pub mod logging;
 pub mod models;
+#[cfg(target_os = "macos")]
+pub mod permissions;
+#[cfg(target_os = "windows")]
+#[path = "permissions/windows.rs"]
 pub mod permissions;
 pub mod processing;
 pub mod providers;
@@ -136,6 +144,8 @@ pub fn run() {
                 // its GPU state around it; see `TranscriptionProvider::unload`.
                 api::shutdown(app);
                 if let Some(state) = app.try_state::<AppState>() {
+                    state.recorder.set_tap(None);
+                    state.capture_transcription.lock().unwrap_or_else(|e| e.into_inner()).take();
                     state.providers.unload_all();
                 }
             }

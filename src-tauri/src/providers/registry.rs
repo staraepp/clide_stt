@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use crate::models::ModelStore;
 
+#[cfg(target_os = "macos")]
 use super::apple::AppleSpeechProvider;
 use super::local::{LocalParakeetProvider, LocalWhisperProvider};
 use super::traits::{ProviderDescriptor, TranscriptionProvider};
@@ -20,6 +21,7 @@ impl ProviderRegistry {
             providers: vec![
                 // Ships with macOS: usable on a fresh install with no
                 // download, which also makes it the safest fallback.
+                #[cfg(target_os = "macos")]
                 Arc::new(AppleSpeechProvider::new()),
                 Arc::new(LocalWhisperProvider::new(models.clone())),
                 Arc::new(LocalParakeetProvider::new(models)),
@@ -104,6 +106,7 @@ mod tests {
     /// A fresh install has nothing downloaded, so the default must be the
     /// engine that ships with macOS.
     #[test]
+    #[cfg(target_os = "macos")]
     fn the_default_engine_works_on_a_fresh_install() {
         let registry = ProviderRegistry::new(ModelStore::new(
             &std::env::temp_dir().join("clide-registry-fresh"),
@@ -114,6 +117,7 @@ mod tests {
     #[test]
     fn providers_are_looked_up_by_id_not_by_position() {
         let registry = ProviderRegistry::new(ModelStore::new(&std::env::temp_dir()));
+        #[cfg(target_os = "macos")]
         assert!(registry.get("apple").is_some());
         assert!(registry.get("local-whisper").is_some());
         assert!(registry.get("local-parakeet").is_some());

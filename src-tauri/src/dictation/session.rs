@@ -63,10 +63,7 @@ impl DictationSession {
     }
 
     pub fn state(&self) -> DictationState {
-        self.state
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .clone()
+        self.state.lock().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
     pub fn epoch(&self) -> u64 {
@@ -94,10 +91,8 @@ impl DictationSession {
     /// Record which application the user is dictating into. Called when
     /// capture starts, before any audio exists.
     pub fn begin(&self, target: FocusTarget) {
-        *self.pending.lock().unwrap_or_else(|e| e.into_inner()) = Some(Pending {
-            clip: None,
-            target,
-        });
+        *self.pending.lock().unwrap_or_else(|e| e.into_inner()) =
+            Some(Pending { clip: None, target });
     }
 
     /// The application this transaction is speaking to.
@@ -179,9 +174,14 @@ impl DictationSession {
     ///
     /// Safe to call twice; the second call replaces the first, restoring the
     /// original level before ducking again.
-    pub fn duck_audio(&self) {
-        *self.ducked.lock().unwrap_or_else(|e| e.into_inner()) =
-            crate::audio::ducking::Ducked::engage();
+    pub fn duck_audio(&self, epoch: u64) {
+        let mut ducked = self.ducked.lock().unwrap_or_else(|e| e.into_inner());
+        if self.epoch() != epoch || !self.state().is_capturing() {
+            return;
+        }
+        // Restore an older guard before reading the original volume again.
+        ducked.take();
+        *ducked = crate::audio::ducking::Ducked::engage();
     }
 
     /// Put the user's volume back.

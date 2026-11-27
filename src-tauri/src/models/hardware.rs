@@ -1,8 +1,8 @@
-//! What this Mac can actually run.
+//! What this machine can actually run.
 //!
 //! The model feed ranks local models by how well they will run *here*, so this
-//! has to be measured rather than assumed. Everything comes from `sysctl`, so
-//! there is no dependency and no permission prompt.
+//! has to be measured rather than assumed. macOS uses `sysctl`; Windows uses
+//! the OS memory API and, in CUDA builds, `nvidia-smi`. No permission prompt.
 
 use std::sync::OnceLock;
 
@@ -19,6 +19,10 @@ pub struct Hardware {
     /// Apple Silicon means Metal acceleration for whisper.cpp and the ANE for
     /// ONNX, which is the single biggest factor in local speed.
     pub apple_silicon: bool,
+    /// NVIDIA adapter reported by the driver, when a CUDA build can use it.
+    pub gpu_name: Option<String>,
+    /// Acceleration available to the local engines in this build.
+    pub accelerator: Option<String>,
 }
 
 impl Hardware {
@@ -42,6 +46,70 @@ pub fn hardware() -> &'static Hardware {
     HARDWARE.get_or_init(detect)
 }
 
+#[cfg(target_os = "windows")]
+fn detect() -> Hardware {
+    #[repr(C)]
+    struct Memory {
+        length: u32,
+        load: u32,
+        total: u64,
+        available: u64,
+        page: u64,
+        avail_page: u64,
+        virtual_total: u64,
+        avail_virtual: u64,
+        extended: u64,
+    }
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GlobalMemoryStatusEx(info: *mut Memory) -> i32;
+    }
+
+    let mut memory: Memory = unsafe { std::mem::zeroed() };
+    memory.length = std::mem::size_of::<Memory>() as u32;
+    let total = if unsafe { GlobalMemoryStatusEx(&mut memory) } != 0 {
+        memory.total
+    } else {
+        0
+    };
+    let gpu_name = nvidia_gpu_name();
+
+    Hardware {
+        chip: std::env::var("PROCESSOR_IDENTIFIER").unwrap_or("Windows processor".into()),
+        total_memory_bytes: total,
+        performance_cores: std::thread::available_parallelism()
+            .map(|n| n.get() as u32)
+            .unwrap_or(1),
+        apple_silicon: false,
+        accelerator: gpu_name.as_ref().map(|_| "CUDA".into()),
+        gpu_name,
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn nvidia_gpu_name() -> Option<String> {
+    #[cfg(feature = "cuda")]
+    {
+        let output = std::process::Command::new("nvidia-smi")
+            .args(["--query-gpu=name", "--format=csv,noheader,nounits"])
+            .output()
+            .ok()?;
+        if !output.status.success() {
+            return None;
+        }
+        String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .map(str::trim)
+            .find(|line| !line.is_empty())
+            .map(str::to_string)
+    }
+    #[cfg(not(feature = "cuda"))]
+    {
+        None
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
 fn detect() -> Hardware {
     let apple_silicon = sysctl_u64("hw.optional.arm64").unwrap_or(0) == 1;
 
@@ -53,9 +121,12 @@ fn detect() -> Hardware {
             .or_else(|| sysctl_u64("hw.physicalcpu"))
             .unwrap_or(4) as u32,
         apple_silicon,
+        gpu_name: None,
+        accelerator: apple_silicon.then(|| "Metal".into()),
     }
 }
 
+#[cfg(target_os = "macos")]
 fn sysctl_string(name: &str) -> Option<String> {
     let output = std::process::Command::new("sysctl")
         .args(["-n", name])
@@ -68,6 +139,7 @@ fn sysctl_string(name: &str) -> Option<String> {
     (!value.is_empty()).then_some(value)
 }
 
+#[cfg(target_os = "macos")]
 fn sysctl_u64(name: &str) -> Option<u64> {
     sysctl_string(name)?.parse().ok()
 }

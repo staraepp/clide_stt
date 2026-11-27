@@ -71,7 +71,7 @@ export function SettingsView({
 
       <Section
         title="Transcription"
-        description="Everything runs on this Mac. Your audio is never uploaded, and no account or key is needed."
+        description="Everything runs on this device. Your audio is never uploaded, and no account or key is needed."
       >
         <div className="flex flex-wrap items-center gap-4">
           <div className="min-w-0">
@@ -219,7 +219,7 @@ export function SettingsView({
 
       <Section
         title="Local API"
-        description="Lets another app on this Mac transcribe audio with Clide or follow its recording state. Off unless you turn it on."
+        description="Lets another app on this device transcribe audio with Clide or follow its recording state. Off unless you turn it on."
       >
         <LocalApiSection status={status} refresh={refresh} />
       </Section>
@@ -253,7 +253,7 @@ export function SettingsView({
         />
         <p className="mt-3 text-[12px] leading-relaxed text-ink-3">
           {status.settings.fallback === "localOnly"
-            ? "Another engine on this Mac takes over, and the HUD says which."
+            ? "Another engine on this device takes over, and the HUD says which."
             : "Nothing is substituted. You'll get a Retry button instead."}
         </p>
       </Section>

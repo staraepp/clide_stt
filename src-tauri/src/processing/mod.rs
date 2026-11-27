@@ -36,7 +36,10 @@ impl ProcessingMode {
     /// `refine::RefinerRegistry` — and if none is, the deterministic result is
     /// used rather than the dictation failing.
     pub fn is_available(self) -> bool {
-        true
+        #[cfg(target_os = "windows")]
+        { self != Self::Rewrite }
+        #[cfg(not(target_os = "windows"))]
+        { true }
     }
 
     pub fn as_str(self) -> &'static str {
@@ -148,7 +151,7 @@ mod tests {
             process(ProcessingMode::Rewrite, raw, false).unwrap(),
             process(ProcessingMode::Polished, raw, false).unwrap()
         );
-        assert!(ProcessingMode::Rewrite.is_available());
+        assert_eq!(ProcessingMode::Rewrite.is_available(), cfg!(target_os = "macos"));
     }
 
     #[test]

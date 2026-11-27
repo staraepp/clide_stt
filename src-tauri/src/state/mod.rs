@@ -4,8 +4,8 @@ use std::sync::Mutex;
 
 use crate::audio::Recorder;
 use crate::database::Database;
-use crate::models::ModelStore;
 use crate::dictation::DictationSession;
+use crate::models::ModelStore;
 use crate::providers::ProviderRegistry;
 use crate::refine::RefinerRegistry;
 use crate::settings::{self, AppSettings};
@@ -24,6 +24,10 @@ pub struct AppState {
     pub session: DictationSession,
     /// The live-typing session attached to the dictation in progress, if any.
     pub live: crate::dictation::live::LiveSlot,
+    pub capture_transcription: Mutex<Option<crate::providers::capture::CaptureJob>>,
+    /// Serialize capture setup/teardown so a quick key release cannot stop a
+    /// recorder that is still being opened. Never held during transcription.
+    pub capture_control: tokio::sync::Mutex<()>,
     /// What Clide is doing, as the local API's event stream sees it.
     pub events: crate::api::bus::EventBus,
     /// The running local API server, if it is switched on.
@@ -75,6 +79,8 @@ impl AppState {
             refiners,
             session: DictationSession::new(),
             live: Mutex::new(None),
+            capture_transcription: Mutex::new(None),
+            capture_control: tokio::sync::Mutex::new(()),
             events: crate::api::bus::EventBus::new(),
             api: Mutex::new(crate::api::ApiRuntime::default()),
             settings: Mutex::new(settings),

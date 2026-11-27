@@ -6,7 +6,7 @@ import type { SystemStatus } from "@/lib/types";
 
 /**
  * Which engine is doing the transcribing, and whether it can run right now.
- * Every engine runs on this Mac; "not ready" means the chosen model has not
+ * Every engine runs on this device; "not ready" means the chosen model has not
  * been downloaded.
  */
 export function ProviderCard({
@@ -34,7 +34,7 @@ export function ProviderCard({
       <div className="mt-auto flex items-center gap-2 pt-4 text-[12.5px] text-ink-2">
         <StatusDot tone={status.providerReady ? "ready" : "pending"} />
         {status.providerReady ? (
-          "Runs on this Mac"
+          "Runs on this device"
         ) : (
           <span className="text-warn">Model not downloaded</span>
         )}

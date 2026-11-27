@@ -4,7 +4,7 @@ import { cn } from "@/lib/cn";
 /**
  * How well a model suits this machine.
  *
- * Deliberately worded as a verdict about *this Mac* rather than a generic
+ * Deliberately worded as a verdict about *this device* rather than a generic
  * quality score — it is the answer to "should I download this one?"
  */
 const TONE: Record<Fit, string> = {

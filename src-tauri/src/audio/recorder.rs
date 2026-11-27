@@ -95,7 +95,11 @@ impl Recorder {
             .spawn(move || worker_loop(rx, clip_dir, worker_level, worker_tap))
             .expect("failed to spawn the audio worker thread");
 
-        Self { commands: tx, level, tap }
+        Self {
+            commands: tx,
+            level,
+            tap,
+        }
     }
 
     /// Current microphone level in 0.0..=1.0, sampled by the HUD.
@@ -186,7 +190,9 @@ fn worker_loop(rx: Receiver<Command>, clip_dir: PathBuf, level: Arc<AtomicU32>, 
 
 fn open_stream(level: Arc<AtomicU32>, tap: TapSlot) -> Result<Active, AudioError> {
     let host = cpal::default_host();
-    let device = host.default_input_device().ok_or(AudioError::NoInputDevice)?;
+    let device = host
+        .default_input_device()
+        .ok_or(AudioError::NoInputDevice)?;
     let config = device
         .default_input_config()
         .map_err(|e| AudioError::DeviceUnavailable(e.to_string()))?;
@@ -293,7 +299,17 @@ fn finish(session: Active, clip_dir: &std::path::Path) -> Result<RecordedClip, A
             .lock()
             .map_err(|_| AudioError::Write("capture buffer was poisoned".into()))?;
         let mut samples = std::mem::take(&mut sink.samples);
+        let before = samples.len();
         sink.downsampler.flush(&mut samples);
+        // Capture-time recognition must receive the same final resampler
+        // samples as the recovery WAV, including a partial output window.
+        if samples.len() > before {
+            if let Ok(tap) = sink.tap.lock() {
+                if let Some(tap) = tap.as_ref() {
+                    tap(&samples[before..]);
+                }
+            }
+        }
         if sink.reached_limit {
             tracing::warn!("dictation hit the maximum capture length");
         }

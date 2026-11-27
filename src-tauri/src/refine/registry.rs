@@ -2,7 +2,9 @@
 
 use std::sync::Arc;
 
+#[cfg(target_os = "macos")]
 use super::apple_intelligence::AppleIntelligenceRefiner;
+#[cfg(target_os = "macos")]
 use super::ollama::OllamaRefiner;
 use super::traits::{Refiner, RefinerDescriptor};
 
@@ -17,7 +19,9 @@ impl RefinerRegistry {
             // it is a pre-pass, applied before any of these, so enabling it
             // can never stop a rewrite from happening.
             refiners: vec![
+                #[cfg(target_os = "macos")]
                 Arc::new(AppleIntelligenceRefiner::new()),
+                #[cfg(target_os = "macos")]
                 Arc::new(OllamaRefiner::new()),
             ],
         }
@@ -69,6 +73,7 @@ mod tests {
     #[test]
     fn a_refiner_can_be_looked_up_by_id() {
         let registry = RefinerRegistry::new();
+        #[cfg(target_os = "macos")]
         assert!(registry.get("apple-intelligence").is_some());
         assert!(registry.get("nonexistent").is_none());
     }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Cpu, HardDrive, Info } from "lucide-react";
+import { CircuitBoard, Cpu, HardDrive, Info } from "lucide-react";
 
 import { Card } from "@/components/Card";
 import { StatusDot } from "@/components/StatusDot";
@@ -15,8 +15,8 @@ import { cn } from "@/lib/cn";
  *
  * Picking an engine and picking its model are the same choice made twice, so
  * they share a screen: providers across the top, then a feed of that provider's
- * models. Local models are ranked by how well they run on *this* Mac, which is
- * measured in Rust rather than guessed at here.
+ * models. Local models are ranked by how well they run on *this* machine, which
+ * is measured in Rust rather than guessed at here.
  */
 export function ModelsView() {
   const [page, setPage] = useState<ModelsPage | null>(null);
@@ -284,13 +284,21 @@ function Hardware({ page }: { page: ModelsPage }) {
         <Cpu size={13} className="text-ink-3" />
         <span className="text-[13px] text-ink">{page.hardware.chip}</span>
       </span>
+      {page.hardware.gpuName && (
+        <span className="flex items-center gap-2">
+          <CircuitBoard size={13} className="text-ink-3" />
+          <span className="text-[13px] text-ink">{page.hardware.gpuName}</span>
+        </span>
+      )}
       <span className="flex items-center gap-2">
         <HardDrive size={13} className="text-ink-3" />
         <span className="text-[13px] text-ink">{page.memoryLabel} memory</span>
       </span>
       <span className="text-[12.5px] text-ink-3">
         {page.hardware.performanceCores} performance cores
-        {page.hardware.appleSilicon ? " · Metal acceleration" : ""}
+        {page.hardware.accelerator
+          ? ` · ${page.hardware.accelerator} acceleration`
+          : ""}
       </span>
       <span className="ml-auto flex items-center gap-1.5 text-[11.5px] text-ink-3">
         <Info size={11} />

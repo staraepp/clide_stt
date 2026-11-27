@@ -1,10 +1,20 @@
 [package]
 name = "clide"
-version = "2.1.1"
+version = "2.1.2"
 description = "Clide — system-wide dictation for macOS"
 edition = "2021"
 rust-version = "1.77"
 default-run = "clide"
+
+[features]
+default = []
+# Windows-only GPU path. The Windows build script enables this when CUDA 13 is
+# available; CPU builds keep working without a CUDA installation.
+cuda = [
+    "whisper-rs/cuda",
+    "parakeet-rs/cuda",
+    "ort/copy-dylibs",
+]
 
 [lib]
 name = "clide_lib"
@@ -15,18 +25,11 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 # Local inference. Metal-accelerated on Apple Silicon; no network at run time.
-whisper-rs = { version = "0.16", default-features = false, features = ["metal"] }
 futures-util = "0.3"
 # Local Parakeet via ONNX Runtime.
 parakeet-rs = "0.3"
 # Apple Intelligence's on-device model, for the Rewrite mode. macOS 26+ only.
-foundation-models = { version = "0.11", features = ["macos_26_0", "async"] }
 # Apple's built-in speech recognition.
-objc2-speech = "0.3"
-objc2-foundation = "0.3"
-objc2-avf-audio = { version = "0.3", default-features = false, features = ["std", "AVAudioBuffer", "AVAudioFile", "AVAudioFormat", "AVAudioTypes"] }
-objc2 = "0.6"
-block2 = "0.6"
 tauri = { version = "2", features = ["macos-private-api", "tray-icon", "image-png"] }
 tauri-plugin-global-shortcut = "2"
 tauri-plugin-updater = "2"
@@ -59,6 +62,11 @@ semver = "1"
 [target.'cfg(target_os = "macos")'.dependencies]
 core-foundation = "0.10"
 core-graphics = { version = "0.24", features = ["elcapitan"] }
+
+foundation-models = { version = "0.11", features = ["macos_26_0", "async"] }
+objc2-speech = "0.3"
+objc2-foundation = "0.3"
+objc2-avf-audio = { version = "0.3", default-features = false, features = ["std", "AVAudioBuffer", "AVAudioFile", "AVAudioFormat", "AVAudioTypes"] }
 objc2 = "0.6"
 block2 = "0.6"
 
@@ -71,3 +79,20 @@ lto = true
 opt-level = "s"
 panic = "abort"
 strip = true
+
+[target.'cfg(target_os = "macos")'.dependencies.whisper-rs]
+version = "0.16"
+default-features = false
+features = ["metal"]
+
+[target.'cfg(target_os = "windows")'.dependencies.whisper-rs]
+version = "0.16"
+default-features = false
+
+[target.'cfg(target_os = "windows")'.dependencies.ort]
+version = "2.0.0-rc.13"
+default-features = false
+features = ["std", "ndarray"]
+
+[patch.crates-io]
+whisper-rs-sys = { path = "vendor/whisper-rs-sys" }

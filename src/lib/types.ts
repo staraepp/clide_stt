@@ -247,6 +247,8 @@ export interface Hardware {
   totalMemoryBytes: number;
   performanceCores: number;
   appleSilicon: boolean;
+  gpuName: string | null;
+  accelerator: string | null;
 }
 
 export interface ModelsPage {
