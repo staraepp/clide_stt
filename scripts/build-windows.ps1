@@ -28,8 +28,13 @@ if ($useCuda) {
     throw "The combined Whisper/Parakeet CUDA build currently requires CUDA 13.x. Use -CpuOnly for a CPU build."
   }
   $env:ORT_CUDA_VERSION = "13"
+  # A T4-only build (CUDAARCHS=75) crashes on newer RTX cards because the
+  # executable has no compatible kernel image. Build SASS for every major
+  # architecture by default; users can still override CUDAARCHS for a
+  # deliberately narrow build.
+  if (-not $env:CUDAARCHS) { $env:CUDAARCHS = "all-major" }
   $features = @("--features", "cuda")
-  Write-Host "CUDA $cudaMajor detected: building GPU-accelerated Whisper and Parakeet."
+  Write-Host "CUDA $cudaMajor detected: building GPU-accelerated Whisper and Parakeet for $env:CUDAARCHS."
 } else {
   Write-Host "Building the CPU-only Windows package."
 }

@@ -70,6 +70,12 @@ they failed the Windows size assertions; the working build regenerated them with
 libclang. The release executable and NSIS installer completed. Live GPU
 inference, microphone capture, insertion and installer execution were not run.
 
+That first CUDA artifact is **T4-only**: its `clide.exe` contains only
+`sm_75` code. Do not use it on RTX 30/40/50-series cards; they need a compatible
+SASS architecture or PTX. `scripts/build-windows.ps1` now defaults to
+`CUDAARCHS=all-major` for new builds, while still honoring an explicit
+`CUDAARCHS` override.
+
 The NSIS packaging step needs a system NSIS 3.13 plus the Tauri
 `nsis_tauri_utils` plugin because the Tauri-bundled NSIS binary requires the
 legacy 32-bit `MSVCP60.dll`. The generated installer was produced manually with
@@ -108,3 +114,7 @@ It includes `clide.exe`, DirectML, the ONNX Runtime CUDA provider,
 `cudart64_13.dll`, `cublas64_13.dll` and `cublasLt64_13.dll`; the latter is
 477 MB and accounts for most of the package size. It is unsigned and has not
 been installed or executed. Models are still downloaded only when selected.
+
+**Compatibility warning:** this artifact was compiled with `CUDAARCHS=75` and is
+only suitable for Tesla T4-class GPUs. RTX 30/40/50 cards need a rebuild with
+`CUDAARCHS=all-major` (the new default in the build script).

@@ -63,6 +63,10 @@ this file only records *state of the build*, never product decisions.
   both built. Artifact: `artifacts/clide_2.1.2_cuda_x64-setup.exe`
   (471,512,593 bytes, SHA-256
   `ef4c3eba739ff457505e25319d9dedcf46fb1c31fd0e6410233444e793688474`).
+- **The published 2.1.2 CUDA installer is T4-only** (`clide.exe` contains only
+  `sm_75`). It can fail on RTX 30/40/50 cards with no compatible kernel image.
+  The build script now defaults to `CUDAARCHS=all-major`; rebuild before
+  distributing to RTX users. An explicit `CUDAARCHS` still overrides it.
 - Packaging note: Tauri's bundled NSIS `makensis` requires the legacy 32-bit
   `MSVCP60.dll`. The working installer was produced with system NSIS 3.13 plus
   the Tauri `nsis_tauri_utils` plugin. Live GPU inference, capture, insertion,
